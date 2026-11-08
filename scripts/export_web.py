@@ -70,7 +70,7 @@ def main():
     params = getDefaultParams()
     params["Appearance"]["Layers list"] = "Expanded"
     params["Appearance"]["Title"] = "upper right"
-    params["Data export"]["Precision"] = "6"
+    params["Data export"]["Precision"] = "8"
     params["Scale/Zoom"]["Extent"] = "Canvas extent"
     project.setTitle("Singapore street points")
     writer.params = params

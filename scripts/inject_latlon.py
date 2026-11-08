@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-PRECISION = 6  # ~0.1 m
+PRECISION = 8  # ~1 mm
 
 
 def slim(ds, raw):
