@@ -16,14 +16,29 @@ from pathlib import Path
 POLL_URL = "https://api-open.data.gov.sg/v1/public/api/datasets/{}/poll-download"
 RATE_LIMITED = 24
 MAX_ATTEMPTS = 6
+RETRY_STATUS = {429, 500, 502, 503, 504}
 
 
 def get(url, api_key=None):
+    """GET a URL, retrying timeouts, dropped connections and temporary server errors."""
     req = urllib.request.Request(url, headers={"User-Agent": "sg-streetpoints"})
     if api_key:
         req.add_header("x-api-key", api_key)
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return resp.read()
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code not in RETRY_STATUS or attempt == MAX_ATTEMPTS:
+                raise
+            reason = f"HTTP {e.code}"
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if attempt == MAX_ATTEMPTS:
+                raise
+            reason = str(getattr(e, "reason", e))
+        # the download link is signed, so log only the part before the query string
+        print(f"attempt {attempt} failed for {url.split('?')[0]} ({reason}); retrying", flush=True)
+        time.sleep(5 * attempt)
 
 
 def download_url(dataset_id, api_key):
