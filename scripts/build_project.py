@@ -27,7 +27,11 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "qgis" / "sg-streetpoints.qgz"
 
 # Switch point: lamp posts draw at 1:LAMP_SCALE or closer, the grid counts draw when zoomed out.
+# qgis2web turns each scale into a web zoom level (utils.scaleToZoom), so these are chosen to land
+# on adjacent levels: lamp posts from zoom 14, the grid up to zoom 13, with no overlap.
 LAMP_SCALE = 18000
+DENSITY_SCALE = 36000
+DENSITY_ZOOMED_OUT_SCALE = 500000  # must not be 0: qgis2web reads 0 as zoom 19 and would never show the layer
 
 # name, title, colour, size (mm), popup fields (used by export_web.py), min scale denominator (0 = always)
 # Listed top -> bottom as they stack on the map.
@@ -77,8 +81,8 @@ def style_density(layer):
         ranges.append(QgsRendererRange(lower, upper, symbol, label))
     layer.setRenderer(QgsGraduatedSymbolRenderer("count", ranges))
     layer.setScaleBasedVisibility(True)
-    layer.setMaximumScale(LAMP_SCALE)  # hidden once zoomed in past 1:LAMP_SCALE
-    layer.setMinimumScale(0)
+    layer.setMaximumScale(DENSITY_SCALE)  # hidden once zoomed in past this
+    layer.setMinimumScale(DENSITY_ZOOMED_OUT_SCALE)
 
 
 def label_bus_stops(layer):
