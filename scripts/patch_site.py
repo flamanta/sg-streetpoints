@@ -2,17 +2,16 @@
 
 Usage: patch_site.py [site_dir]
 
-1. Lamp post vector tiles: qgis2web draws them with SVG tiles (one DOM element per
-   point, slow) and each point is a few pixels wide, so it is hard to click. Use
-   canvas tiles with a click tolerance instead.
+1. Lamp post vector tiles: qgis2web writes add/remove handlers that use a
+   `label_layer_<name>` variable, but only defines it when the layer has labels.
+   Without it, removing the layer (which the zoom limits do at page load) throws a
+   ReferenceError that aborts the rest of the script: no layer list, no labels.
+   Define an empty one.
 2. OneMap basemap: its terms require the OneMap logo and attribution.
 """
 import re
 import sys
 from pathlib import Path
-
-SVG_TILES = "rendererFactory: L.svg.tile,"
-CANVAS_TILES = "rendererFactory: L.canvas.tile,\n            tolerance: 12,"
 
 ONEMAP_ATTRIBUTION = (
     '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" '
@@ -27,6 +26,8 @@ ONEMAP_LAYER = re.compile(
     r"(L\.tileLayer\('https://www\.onemap\.gov\.sg/[^']*',\s*\{)(.*?)(\}\);)", re.DOTALL
 )
 ATTRIBUTION_OPTION = re.compile(r"attribution:\s*'[^']*',?")
+# "var layer_<name> = L.vectorGrid.protobuf(" starts a vector tile layer
+TILE_LAYER = re.compile(r"^([ \t]*)var layer_(\w+) = L\.vectorGrid\.protobuf\(", re.MULTILINE)
 
 
 def patch_onemap(match):
@@ -39,21 +40,37 @@ def patch_onemap(match):
     return start + options + end
 
 
+def define_missing_label_layers(text):
+    """Return (patched text, tile layers found, label layers defined)."""
+    found = defined = 0
+
+    def add(match):
+        nonlocal found, defined
+        indent, name = match.groups()
+        found += 1
+        label = f"label_layer_{name}"
+        if label not in text or re.search(rf"\bvar {label}\b", text):
+            return match.group(0)
+        defined += 1
+        return f"{indent}var {label} = L.layerGroup();\n{match.group(0)}"
+
+    return TILE_LAYER.sub(add, text), found, defined
+
+
 def main():
     site = Path(sys.argv[1] if len(sys.argv) > 1 else "site")
-    tiles = onemap = 0
+    tiles = labels = onemap = 0
     for path in sorted(site.rglob("*.html")):
         text = path.read_text()
-        patched = text.replace(SVG_TILES, CANVAS_TILES)
-        tiles += text.count(SVG_TILES) + text.count("rendererFactory: L.canvas.tile,")  # re-runs are fine
+        patched, found, defined = define_missing_label_layers(text)
         patched, n = ONEMAP_LAYER.subn(patch_onemap, patched)
-        onemap += n
+        tiles, labels, onemap = tiles + found, labels + defined, onemap + n
         if patched != text:
             path.write_text(patched)
-    print(f"canvas tile layers patched: {tiles}; OneMap attribution patched: {onemap}")
-    # fail loudly rather than ship a map that is slow, unclickable or missing a required credit
+    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}")
+    # fail loudly rather than ship a map that is broken or missing a required credit
     if not tiles:
-        sys.exit("no vector tile layer found to patch; did the lamp post tile export run?")
+        sys.exit("no vector tile layer found; did the lamp post tile export run?")
     if not onemap:
         sys.exit("OneMap tile layer not found; cannot add its required attribution")
 
