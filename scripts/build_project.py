@@ -9,13 +9,11 @@ from qgis.core import (
     Qgis,
     QgsApplication,
     QgsCoordinateReferenceSystem,
-    QgsGraduatedSymbolRenderer,
     QgsMarkerSymbol,
     QgsPalLayerSettings,
     QgsProject,
     QgsRasterLayer,
     QgsReferencedRectangle,
-    QgsRendererRange,
     QgsRectangle,
     QgsSingleSymbolRenderer,
     QgsTextFormat,
@@ -49,16 +47,6 @@ BASEMAP_SOURCE = (
     "&zmin=11&zmax=19"
 )
 
-# lower, upper, size (mm), label: graduated bubbles for the grid counts
-DENSITY_CLASSES = [
-    (1, 24, 2.5, "1 - 24"),
-    (25, 74, 4.0, "25 - 74"),
-    (75, 149, 5.5, "75 - 149"),
-    (150, 249, 7.5, "150 - 249"),
-    (250, 100000, 10.0, "250+"),
-]
-
-
 def style(layer, colour, size, minscale):
     symbol = QgsMarkerSymbol.createSimple(
         {"name": "circle", "color": colour, "outline_color": "#ffffff",
@@ -72,28 +60,29 @@ def style(layer, colour, size, minscale):
 
 
 def style_density(layer):
-    ranges = []
-    for lower, upper, size, label in DENSITY_CLASSES:
-        symbol = QgsMarkerSymbol.createSimple(
-            {"name": "circle", "color": "240,163,10,170", "outline_color": "#ffffff",
-             "outline_width": "0.3", "size": str(size)}
-        )
-        ranges.append(QgsRendererRange(lower, upper, symbol, label))
-    layer.setRenderer(QgsGraduatedSymbolRenderer("count", ranges))
+    # One uniform bubble with the count printed on it. qgis2web's graduated-size styling
+    # failed on this layer in CI (IndexError in getSymbolAsStyle), so keep it simple.
+    symbol = QgsMarkerSymbol.createSimple(
+        {"name": "circle", "color": "240,163,10,170", "outline_color": "#ffffff",
+         "outline_width": "0.3", "size": "6"}
+    )
+    layer.setRenderer(QgsSingleSymbolRenderer(symbol))
     layer.setScaleBasedVisibility(True)
     layer.setMaximumScale(DENSITY_SCALE)  # hidden once zoomed in past this
     layer.setMinimumScale(DENSITY_ZOOMED_OUT_SCALE)
+    label_layer(layer, "count", 9)
 
 
-def label_bus_stops(layer):
+def label_layer(layer, field, size, max_scale=0):
     settings = QgsPalLayerSettings()
-    settings.fieldName = "BUS_STOP_NUM"
+    settings.fieldName = field
     settings.placement = Qgis.LabelPlacement.OverPoint
     fmt = QgsTextFormat()
-    fmt.setSize(8)
+    fmt.setSize(size)
     settings.setFormat(fmt)
-    settings.scaleVisibility = True
-    settings.maximumScale = 5000  # only label when zoomed in
+    if max_scale:
+        settings.scaleVisibility = True
+        settings.maximumScale = max_scale  # only label when zoomed in
     layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
     layer.setLabelsEnabled(True)
 
@@ -120,7 +109,7 @@ def main():
         else:
             style(layer, colour, size, minscale)
         if name == "lta_bus_stop":
-            label_bus_stops(layer)
+            label_layer(layer, "BUS_STOP_NUM", 8, max_scale=5000)
         project.addMapLayer(layer)
 
     project.viewSettings().setDefaultViewExtent(
