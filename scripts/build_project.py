@@ -6,6 +6,7 @@ Run inside a QGIS environment (e.g. the qgis/qgis Docker image):
 from pathlib import Path
 
 from qgis.core import (
+    Qgis,
     QgsApplication,
     QgsCoordinateReferenceSystem,
     QgsMarkerSymbol,
@@ -45,7 +46,7 @@ def style(layer, colour, size, minscale):
 def label_bus_stops(layer):
     settings = QgsPalLayerSettings()
     settings.fieldName = "BUS_STOP_NUM"
-    settings.placement = QgsPalLayerSettings.OverPoint
+    settings.placement = Qgis.LabelPlacement.OverPoint
     fmt = QgsTextFormat()
     fmt.setSize(8)
     settings.setFormat(fmt)
@@ -61,7 +62,7 @@ def main():
 
     project = QgsProject.instance()
     project.setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
-    project.setFilePathStorage(project.FilePathType.Relative)
+    project.setFilePathStorage(Qgis.FilePathType.Relative)
 
     for name, title, colour, size, popup_fields, minscale in reversed(LAYERS):
         layer = QgsVectorLayer(str(ROOT / "data" / f"{name}.geojson"), title, "ogr")
