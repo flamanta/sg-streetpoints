@@ -24,8 +24,8 @@ OUT = ROOT / "qgis" / "sg-streetpoints.qgz"
 # Each point layer has five regional count bubbles for when the map is zoomed out and the individual
 # points for when it is zoomed in. qgis2web turns a scale into a web zoom level
 # (utils.scaleToZoom), so these are chosen to land on adjacent levels with no overlap.
-LAMP_SCALE = 18000  # lamp posts from zoom 14 ...
-REGION_SCALE = 36000  # ... the lamp post regions up to zoom 13
+LAMP_SCALE = 12000  # lamp posts from zoom 15 (zoom 14 drew about 50,000 SVG shapes at once) ...
+REGION_SCALE = 20000  # ... the lamp post regions up to zoom 14
 BUS_SCALE = 12000  # bus stops from zoom 15 ...
 BUS_REGION_SCALE = 20000  # ... the bus stop regions up to zoom 14
 REGION_ZOOMED_OUT_SCALE = 500000  # must not be 0: qgis2web reads 0 as zoom 19 and would never show the layer

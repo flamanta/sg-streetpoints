@@ -21,7 +21,7 @@ PROJECT = ROOT / "qgis" / "sg-streetpoints.qgz"
 POPUP_SHOWN = "inline label - always visible"
 POPUP_HIDDEN = "hidden field"
 TILED_LAYER = "LTA Lamp Post"
-TILE_MIN_ZOOM, TILE_MAX_ZOOM = 14, 16  # lamp posts only draw from about zoom 15
+TILE_MIN_ZOOM, TILE_MAX_ZOOM = 15, 16  # the lamp posts only draw from zoom 15, so zoom 14 tiles are not needed
 
 sys.path.insert(0, str(ROOT / "scripts"))
 
