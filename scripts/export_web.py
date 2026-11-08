@@ -10,14 +10,14 @@ import sys
 from collections import OrderedDict
 from pathlib import Path
 
-from qgis.core import QgsApplication, QgsProject, QgsRectangle
+from qgis.core import QgsApplication, QgsProject, QgsRasterLayer, QgsRectangle
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECT = ROOT / "qgis" / "sg-streetpoints.qgz"
 POPUP_SHOWN = "inline label - always visible"
 POPUP_HIDDEN = "hidden field"
 TILED_LAYER = "LTA Lamp Post"
-TILE_MIN_ZOOM, TILE_MAX_ZOOM = 10, 16
+TILE_MIN_ZOOM, TILE_MAX_ZOOM = 14, 16  # lamp posts only draw from about zoom 15
 
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -49,7 +49,7 @@ def main():
     Processing.initialize()
     QgsApplication.processingRegistry().addProvider(QgsNativeAlgorithms())
     from qgis.gui import QgsMapCanvas
-    from build_project import LAYERS
+    from build_project import BASEMAP_TITLE, LAYERS
     from qgis2web.configparams import getDefaultParams
     from qgis2web.leafletWriter import LeafletWriter
 
@@ -67,8 +67,11 @@ def main():
     layers, popup = [], []
     for layer in reversed(project.layerTreeRoot().findLayers()):  # bottom -> top
         layer = layer.layer()
-        shown = popup_fields[layer.name()]
         layers.append(layer)
+        if isinstance(layer, QgsRasterLayer):
+            popup.append(OrderedDict())  # the basemap has no attributes
+            continue
+        shown = popup_fields[layer.name()]
         popup.append(OrderedDict(
             (f.name(), POPUP_SHOWN if f.name() in shown else POPUP_HIDDEN)
             for f in layer.fields()
@@ -81,6 +84,8 @@ def main():
     params["Appearance"]["Title"] = "upper right"
     params["Data export"]["Precision"] = "8"
     params["Scale/Zoom"]["Extent"] = "Canvas extent"
+    params["Scale/Zoom"]["Min zoom level"] = "11"  # OneMap has no tiles below this
+    params["Scale/Zoom"]["Max zoom level"] = "19"
     project.setTitle("Singapore street points")
     writer.params = params
     writer.layers = layers  # qgis2web expects bottom -> top
@@ -90,14 +95,15 @@ def main():
     writer.interactive = [True] * n
     writer.json = [True] * n
     # The 126k LTA lamp posts are served as vector tiles (only the tiles in view
-    # load), which replaces clustering. Everything else stays plain GeoJSON.
+    # load). The zoomed-out overview is the small grid-count layer, so no marker
+    # clustering. Everything else stays plain GeoJSON.
     writer.cluster = [False] * n
     writer.pbfVectorTile = [
         (True, TILE_MIN_ZOOM, TILE_MAX_ZOOM) if layer.name() == TILED_LAYER else (False, None, None)
         for layer in writer.layers
     ]
     writer.getFeatureInfo = [""] * n
-    writer.baseMap = [False] * n
+    writer.baseMap = [layer.name() == BASEMAP_TITLE for layer in layers]
     writer.collapsedGroup = []
 
     tmp = ROOT / "raw" / "qgis2web"
