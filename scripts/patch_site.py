@@ -13,7 +13,9 @@ Usage: patch_site.py [site_dir]
    its name and count inside it, sized by count, so the two move together.
 4. Bus stops: same problem for the stop numbers (5,205 tooltips). Draw each stop as a marker
    whose number is part of the marker, and show the numbers only when zoomed in.
-5. Source map comments: browsers with DevTools open request each library's .map file,
+5. Layer list: the region bubbles switch on and off with the zoom level and OneMap is the fixed
+   background, so neither should be a checkbox or radio button in the list.
+6. Source map comments: browsers with DevTools open request each library's .map file,
    which is not used by the page and often missing (404) or rate limited (429).
 """
 import re
@@ -38,6 +40,7 @@ SOURCE_MAP_COMMENT = re.compile(r"^[ \t]*(?://|/\*)[#@] sourceMappingURL=[^\n]*?
 REGION_POINT = re.compile(r"return L\.circleMarker\(latlng, style_(\w*regions\w*)_0\(feature\)\);")
 REGION_MARKER = """return L.marker(latlng, {
                     pane: 'pane___NAME__',
+                    keyboard: false,
                     icon: (function () {
                         var n = feature.properties['count'];
                         var d = Math.round(52 + 8 * Math.log10(Math.max(n, 1)));
@@ -53,11 +56,16 @@ REGION_MARKER = """return L.marker(latlng, {
 REGION_COLOURS = {"BusStop": ("rgba(28,126,214,0.8)", "#fff")}
 REGION_COLOURS_DEFAULT = ("rgba(240,163,10,0.75)", "#000")
 
+# layer list entries to drop: the "(regions)" layers and the OneMap basemap
+LIST_REGIONS = re.compile(r"\s*\{label: '[^']*\(regions\)', layer: \w+\},?")
+LIST_ONEMAP = re.compile(r"\s*\{label: \"OneMap\"[^}]*\},?")
+
 # the individual bus stops' point factory; the region layer is "...BusStopregions_N", so
 # requiring "_<digits>" right after "BusStop" matches only the individual stops
 STOP_POINT = re.compile(r"return L\.circleMarker\(latlng, style_(LTABusStop_\d+)_0\(feature\)\);")
 STOP_MARKER = """return L.marker(latlng, {
                     pane: 'pane___NAME__',
+                    keyboard: false,
                     icon: L.divIcon({
                         className: 'bus-stop',
                         iconSize: [12, 12],
@@ -66,7 +74,8 @@ STOP_MARKER = """return L.marker(latlng, {
                     })
                 });"""
 SITE_CSS = """<style>
-        .bus-stop { position: relative; }
+        /* Leaflet positions markers with position:absolute, so do not set position on .bus-stop;
+           the label is positioned against the marker itself. */
         .bus-stop-dot { display: block; width: 12px; height: 12px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; background: rgba(28,126,214,1); }
         .bus-stop-label { display: none; position: absolute; left: 15px; top: -1px; font: 600 11px sans-serif; color: #000; white-space: nowrap; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; pointer-events: none; }
         #map.stop-labels .bus-stop-label { display: block; }
@@ -123,7 +132,7 @@ def define_missing_label_layers(text):
 
 def main():
     site = Path(sys.argv[1] if len(sys.argv) > 1 else "site")
-    tiles = labels = onemap = grid = stops = 0
+    tiles = labels = onemap = grid = stops = listed = 0
     for path in sorted(site.rglob("*.html")):
         text = path.read_text()
         patched, found, defined = define_missing_label_layers(text)
@@ -134,6 +143,9 @@ def main():
         st += patched.count("className: 'bus-stop'") if not st else 0
         if st and "bus-stop-label" not in text:  # first patch of this page: add the CSS and the zoom switch
             patched = patched.replace("</head>", SITE_CSS + "</head>", 1).replace("</body>", SITE_SCRIPT + "</body>", 1)
+        patched, r1 = LIST_REGIONS.subn("", patched)
+        patched, r2 = LIST_ONEMAP.subn("", patched)
+        listed += r1 + r2
         tiles, labels, onemap, grid, stops = tiles + found, labels + defined, onemap + n, grid + g, stops + st
         if patched != text:
             path.write_text(patched)
@@ -145,7 +157,7 @@ def main():
             path.write_text(patched, errors="surrogateescape")
             maps += n
     print(f"source map comments removed: {maps}")
-    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}; region markers: {grid}; bus stop markers: {stops}")
+    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}; region markers: {grid}; bus stop markers: {stops}; layer list entries removed: {listed}")
     # fail loudly rather than ship a map that is broken or missing a required credit
     if not tiles:
         sys.exit("no vector tile layer found; did the lamp post tile export run?")
