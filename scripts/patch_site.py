@@ -8,9 +8,9 @@ Usage: patch_site.py [site_dir]
    ReferenceError that aborts the rest of the script: no layer list, no labels.
    Define an empty one.
 2. OneMap basemap: its terms require the OneMap logo and attribution.
-3. Grid counts: qgis2web draws labels as separate tooltips that lag behind their markers
-   while zooming and end up in the wrong place. Draw each bubble as a marker with the count
-   inside it, sized by count, so the two move together.
+3. Regions: qgis2web draws labels as separate tooltips that lag behind their markers
+   while zooming and end up in the wrong place. Draw each regional bubble as a marker with
+   its name and count inside it, sized by count, so the two move together.
 4. Bus stops: same problem for the stop numbers (5,205 tooltips). Draw each stop as a marker
    whose number is part of the marker, and show the numbers only when zoomed in.
 5. Source map comments: browsers with DevTools open request each library's .map file,
@@ -34,26 +34,26 @@ ONEMAP_LAYER = re.compile(
 )
 # "//# sourceMappingURL=x.map" at the end of a script, "/*# sourceMappingURL=x.map */" in CSS
 SOURCE_MAP_COMMENT = re.compile(r"^[ \t]*(?://|/\*)[#@] sourceMappingURL=[^\n]*?(?:\*/)?[ \t]*$", re.MULTILINE)
-# the grid-count layer's point factory, e.g. "return L.circleMarker(latlng, style_<name>_0(feature));"
-GRID_POINT = re.compile(r"return L\.circleMarker\(latlng, style_(\w*gridcounts\w*)_0\(feature\)\);")
-GRID_MARKER = """return L.marker(latlng, {
+# the region layers' point factory, e.g. "return L.circleMarker(latlng, style_<name>_0(feature));"
+REGION_POINT = re.compile(r"return L\.circleMarker\(latlng, style_(\w*regions\w*)_0\(feature\)\);")
+REGION_MARKER = """return L.marker(latlng, {
                     pane: 'pane___NAME__',
                     icon: (function () {
                         var n = feature.properties['count'];
-                        var d = Math.round(22 + 9 * Math.log10(Math.max(n, 1)));
+                        var d = Math.round(52 + 8 * Math.log10(Math.max(n, 1)));
                         return L.divIcon({
-                            className: 'grid-count',
+                            className: 'region-count',
                             iconSize: [d, d],
                             popupAnchor: [0, -d / 2],
-                            html: '<div style="width:' + d + 'px;height:' + d + 'px;line-height:' + (d - 4) + 'px;box-sizing:border-box;border:2px solid #fff;border-radius:50%;background:__BACKGROUND__;color:__TEXT__;font:600 11px sans-serif;text-align:center;">' + n + '</div>'
+                            html: '<div style="width:' + d + 'px;height:' + d + 'px;box-sizing:border-box;border:2px solid #fff;border-radius:50%;background:__BACKGROUND__;color:__TEXT__;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:600 10px/1.2 sans-serif;"><span>' + feature.properties['name'] + '</span><span style="font-size:13px;">' + n.toLocaleString() + '</span></div>'
                         });
                     })()
                 });"""
-# bubble colours: (background, text) for bus stop grids, and for everything else (lamp posts)
-GRID_COLOURS = {"BusStop": ("rgba(28,126,214,0.8)", "#fff")}
-GRID_COLOURS_DEFAULT = ("rgba(240,163,10,0.75)", "#000")
+# bubble colours: (background, text) for the bus stop region bubbles, and for the lamp posts
+REGION_COLOURS = {"BusStop": ("rgba(28,126,214,0.8)", "#fff")}
+REGION_COLOURS_DEFAULT = ("rgba(240,163,10,0.75)", "#000")
 
-# the individual bus stops' point factory; the grid layer is "...BusStopgridcounts_N", so
+# the individual bus stops' point factory; the region layer is "...BusStopregions_N", so
 # requiring "_<digits>" right after "BusStop" matches only the individual stops
 STOP_POINT = re.compile(r"return L\.circleMarker\(latlng, style_(LTABusStop_\d+)_0\(feature\)\);")
 STOP_MARKER = """return L.marker(latlng, {
@@ -98,10 +98,10 @@ def patch_onemap(match):
     return start + options + end
 
 
-def grid_marker(match):
+def region_marker(match):
     name = match.group(1)
-    background, text = next((c for key, c in GRID_COLOURS.items() if key in name), GRID_COLOURS_DEFAULT)
-    return GRID_MARKER.replace("__NAME__", name).replace("__BACKGROUND__", background).replace("__TEXT__", text)
+    background, text = next((c for key, c in REGION_COLOURS.items() if key in name), REGION_COLOURS_DEFAULT)
+    return REGION_MARKER.replace("__NAME__", name).replace("__BACKGROUND__", background).replace("__TEXT__", text)
 
 
 def define_missing_label_layers(text):
@@ -128,8 +128,8 @@ def main():
         text = path.read_text()
         patched, found, defined = define_missing_label_layers(text)
         patched, n = ONEMAP_LAYER.subn(patch_onemap, patched)
-        patched, g = GRID_POINT.subn(grid_marker, patched)
-        g += patched.count("className: 'grid-count'") if not g else 0  # already patched: re-runs are fine
+        patched, g = REGION_POINT.subn(region_marker, patched)
+        g += patched.count("className: 'region-count'") if not g else 0  # already patched: re-runs are fine
         patched, st = STOP_POINT.subn(lambda m: STOP_MARKER.replace("__NAME__", m.group(1)), patched)
         st += patched.count("className: 'bus-stop'") if not st else 0
         if st and "bus-stop-label" not in text:  # first patch of this page: add the CSS and the zoom switch
@@ -145,13 +145,13 @@ def main():
             path.write_text(patched, errors="surrogateescape")
             maps += n
     print(f"source map comments removed: {maps}")
-    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}; grid count markers: {grid}; bus stop markers: {stops}")
+    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}; region markers: {grid}; bus stop markers: {stops}")
     # fail loudly rather than ship a map that is broken or missing a required credit
     if not tiles:
         sys.exit("no vector tile layer found; did the lamp post tile export run?")
     # the map still works without the numbers, so warn rather than fail
     if not grid:
-        print("::warning::grid count layers not found; the bubbles will have no numbers")
+        print("::warning::region layers not found; the bubbles will have no names or numbers")
     if not stops:
         print("::warning::bus stop layer not found; the stops will have no numbers")
     if not onemap:
