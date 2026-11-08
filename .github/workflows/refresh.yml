@@ -1,4 +1,4 @@
-name: Refresh data
+name: Refresh data and publish map
 
 on:
   schedule:
@@ -11,6 +11,8 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.fetch.outputs.result }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,8 +36,49 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data
-          git commit -m "Refresh data.gov.sg GeoJSON"
+          git commit -m "chore: refresh data.gov.sg GeoJSON"
           git push
 
-      # qgis2web export + GitHub Pages deploy is added after the headless
-      # export spike (plan step 5), which needs QGIS/Docker.
+  export:
+    needs: refresh
+    # always export on a manual run so the map can be rebuilt without new data
+    if: needs.refresh.outputs.result == 'changed' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container: qgis/qgis:ltr
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }} # pick up the data commit made above
+
+      - name: Install qgis2web
+        run: python3 scripts/install_qgis2web.py
+
+      - name: Build QGIS project
+        run: python3 scripts/build_project.py
+
+      - name: Export web map
+        run: python3 scripts/export_web.py site
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qgis-project
+          path: qgis/sg-streetpoints.qgz
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: export
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
