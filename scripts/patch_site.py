@@ -28,10 +28,16 @@ Usage: patch_site.py [site_dir]
 8. Debug panel: opening the map with ?debug in the address shows what the lamp post tile layer
    is doing (zoom, on the map or not, tile requests by status, shapes drawn, errors), so a
    report from a browser tells us where it fails. Normal visitors never see it.
-9. Source map comments: browsers with DevTools open request each library's .map file,
+9. Unused libraries: qgis2web always includes a set of add-on libraries (pattern fills, address
+   search, labels, rotated markers, Font Awesome, expression helpers). Drop each one the page's own
+   code does not use, along with its file, so the browser makes fewer requests. A library is only
+   removed when nothing in the page's code mentions it, so a future qgis2web feature that needs one
+   keeps it.
+10. Source map comments: browsers with DevTools open request each library's .map file,
    which is not used by the page and often missing (404) or rate limited (429).
 """
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -84,6 +90,36 @@ def link_title(match):
 # layer list entries to drop: the "(regions)" layers and the OneMap basemap
 LIST_REGIONS = re.compile(r"\s*\{label: '[^']*\(regions\)', layer: \w+\},?")
 LIST_ONEMAP = re.compile(r"\s*\{label: \"OneMap\"[^}]*\},?")
+
+# Libraries qgis2web includes whether or not the map uses them. Each entry: the files that go together,
+# and a pattern for code that would use them. A library is removed only if that pattern finds nothing
+# in the page's inline code.
+OPTIONAL_LIBRARIES = {
+    "rotated markers": (["js/leaflet.rotatedMarker.js"], r"rotationAngle|rotationOrigin|rotatedMarker"),
+    "pattern fills": (["js/leaflet.pattern.js"], r"Pattern"),
+    "labels": (["js/rbush.min.js", "js/labelgun.min.js", "js/labels.js"], r"labelgun|rbush|resetLabels|addLabel\(|totalMarkers|labels\.push"),
+    "address search": (["js/leaflet.photon.js", "css/leaflet.photon.css"], r"[Pp]hoton|addressSearch|search-button"),
+    "expression helpers": (["js/qgis2web_expressions.js"], r"\bfnc_\w+\(|\bcompile_"),
+    "Font Awesome": (["css/fontawesome-all.min.css"], r"\bfas?\b|\bfa[brs]\b|\bfa-"),
+}
+SCRIPT_TAG = r"[ \t]*<script src=\"{}\"></script>[ \t]*\n?"
+STYLE_TAG = r"[ \t]*<link rel=\"stylesheet\" href=\"{}\">[ \t]*\n?"
+
+
+def strip_unused_libraries(text):
+    """Return (text without the unused library tags, the files that are no longer referenced)."""
+    inline = "\n".join(re.findall(r"<script>(.*?)</script>", text, re.DOTALL))
+    dropped = []
+    for _, (files, uses) in OPTIONAL_LIBRARIES.items():
+        if re.search(uses, inline):
+            continue
+        for f in files:
+            tag = (SCRIPT_TAG if f.endswith(".js") else STYLE_TAG).format(re.escape(f))
+            text, n = re.subn(tag, "", text)
+            if n:
+                dropped.append(f)
+    return text, dropped
+
 
 # the individual bus stops' point factory; the region layer is "...BusStopregions_N", so
 # requiring "_<digits>" right after "BusStop" matches only the individual stops
@@ -271,9 +307,12 @@ def define_missing_label_layers(text):
 def main():
     site = Path(sys.argv[1] if len(sys.argv) > 1 else "site")
     tiles = labels = onemap = grid = stops = listed = fixed_tiles = title_links = 0
+    removed_libs = set()
     for path in sorted(site.rglob("*.html")):
         text = path.read_text()
         patched, found, defined = define_missing_label_layers(text)
+        patched, dropped = strip_unused_libraries(patched)
+        removed_libs.update(dropped)
         patched, titled = TITLE_HEADING.subn(link_title, patched)
         patched, fixed = fix_tile_layers(patched)
         patched, n = ONEMAP_LAYER.subn(patch_onemap, patched)
@@ -293,6 +332,11 @@ def main():
         tiles, labels, onemap, grid, stops = tiles + found, labels + defined, onemap + n, grid + g, stops + st
         if patched != text:
             path.write_text(patched)
+    for name in removed_libs:
+        (site / name).unlink(missing_ok=True)
+    if "css/fontawesome-all.min.css" in removed_libs:
+        shutil.rmtree(site / "webfonts", ignore_errors=True)  # only that stylesheet refers to them
+    print(f"unused library files removed: {len(removed_libs)}")
     maps = 0
     for path in sorted([*site.rglob("*.js"), *site.rglob("*.css")]):
         text = path.read_text(errors="surrogateescape")
