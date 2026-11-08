@@ -21,7 +21,9 @@ def slim(ds, raw):
             sys.exit(f"{ds['name']}: non-Point or missing geometry")
         lon, lat = (round(c, PRECISION) for c in geom["coordinates"][:2])
         props = {k: f["properties"].get(k) for k in ds["slim_props"]}
-        props["lat"], props["lon"] = lat, lon
+        # Text, not numbers: qgis2web re-exports numeric fields with its own
+        # precision and was cutting these to 5 decimals. Text also keeps trailing zeros.
+        props["lat"], props["lon"] = f"{lat:.{PRECISION}f}", f"{lon:.{PRECISION}f}"
         features.append(
             {"type": "Feature", "properties": props,
              "geometry": {"type": "Point", "coordinates": [lon, lat]}}
