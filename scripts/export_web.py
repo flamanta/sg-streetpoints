@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 PROJECT = ROOT / "qgis" / "sg-streetpoints.qgz"
 POPUP_SHOWN = "inline label - always visible"
 POPUP_HIDDEN = "hidden field"
+TILED_LAYER = "LTA Lamp Post"
+TILE_MIN_ZOOM, TILE_MAX_ZOOM = 10, 16
 
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -87,9 +89,13 @@ def main():
     writer.visible = [True] * n
     writer.interactive = [True] * n
     writer.json = [True] * n
-    # cluster the dense lamp post layer, not the bus stops
-    writer.cluster = [layer.name() == "LTA Lamp Post" for layer in writer.layers]
-    writer.pbfVectorTile = [(False, None, None)] * n
+    # The 126k LTA lamp posts are served as vector tiles (only the tiles in view
+    # load), which replaces clustering. Everything else stays plain GeoJSON.
+    writer.cluster = [False] * n
+    writer.pbfVectorTile = [
+        (True, TILE_MIN_ZOOM, TILE_MAX_ZOOM) if layer.name() == TILED_LAYER else (False, None, None)
+        for layer in writer.layers
+    ]
     writer.getFeatureInfo = [""] * n
     writer.baseMap = [False] * n
     writer.collapsedGroup = []
