@@ -1,4 +1,4 @@
-"""Install the latest qgis2web plugin compatible with the running QGIS into the default profile.
+"""Install the latest qgis2web plugin compatible with the running QGIS into raw/qgis-plugins.
 
 Run inside a QGIS environment: python3 scripts/install_qgis2web.py
 """
@@ -12,6 +12,8 @@ from pathlib import Path
 from qgis.core import Qgis
 
 PLUGIN = "qgis2web"
+# fixed location in the workspace, so it does not depend on $HOME or the QGIS profile
+PLUGIN_DIR = Path(__file__).resolve().parent.parent / "raw" / "qgis-plugins"
 REPO = "https://plugins.qgis.org/plugins/plugins.xml?qgis={}"
 
 
@@ -31,10 +33,9 @@ def main():
     url = entries[0].findtext("download_url")
     print(f"installing {PLUGIN} {entries[0].get('version')} for QGIS {version}")
 
-    dest = Path.home() / ".local/share/QGIS/QGIS3/profiles/default/python/plugins"
-    dest.mkdir(parents=True, exist_ok=True)
-    zipfile.ZipFile(io.BytesIO(fetch(url))).extractall(dest)
-    print(f"installed to {dest / PLUGIN}")
+    PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
+    zipfile.ZipFile(io.BytesIO(fetch(url))).extractall(PLUGIN_DIR)
+    print(f"installed to {PLUGIN_DIR / PLUGIN}")
 
 
 if __name__ == "__main__":
