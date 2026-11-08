@@ -15,10 +15,15 @@ Usage: patch_site.py [site_dir]
    whose number is part of the marker, and show the numbers only when zoomed in.
 5. Layer list: the region bubbles switch on and off with the zoom level and OneMap is the fixed
    background, so neither should be a checkbox or radio button in the list.
-6. Debug panel: opening the map with ?debug in the address shows what the lamp post tile layer
+6. Tile clicks and startup: a click on a vector-tile point threw a TypeError inside Leaflet (it
+   treats a small shape with getLatLng() as a marker, but tile shapes have no lat/lng), so no
+   popup ever opened. Remove getLatLng from the tile shapes. Also stop adding the tile layer to
+   the map at load: at the start zoom it fetched about 1,200 tiles before the zoom limits
+   removed it again, which tripped GitHub's rate limit (429).
+7. Debug panel: opening the map with ?debug in the address shows what the lamp post tile layer
    is doing (zoom, on the map or not, tile requests by status, shapes drawn, errors), so a
    report from a browser tells us where it fails. Normal visitors never see it.
-7. Source map comments: browsers with DevTools open request each library's .map file,
+8. Source map comments: browsers with DevTools open request each library's .map file,
    which is not used by the page and often missing (404) or rate limited (429).
 """
 import re
@@ -162,6 +167,39 @@ def patch_onemap(match):
     return start + options + end
 
 
+TILE_CLICK_FIX = """// Leaflet treats a small shape that has getLatLng() as a marker and reads its lat/lng when it is
+        // clicked. Tile shapes only have a position inside their tile, so that threw a TypeError and no
+        // popup opened. Without getLatLng() Leaflet uses the click position instead.
+        (function (grid) {
+            var create = grid._createLayer;
+            grid._createLayer = function () {
+                var shape = create.apply(this, arguments);
+                shape.getLatLng = undefined;
+                return shape;
+            };
+        })(layer___NAME__);
+        """
+
+
+def fix_tile_layers(text):
+    """Fix clicks on vector-tile points and do not add the tile layer at load.
+
+    Returns (patched text, number of tile layers handled)."""
+    handled = 0
+    for name in {m.group(2) for m in TILE_LAYER.finditer(text)}:
+        handled += 1
+        added = rf"(bounds_group\.addLayer\(layer_{name}\);\n)[ \t]*map\.addLayer\(layer_{name}\);\n"
+        # the zoom limits add the layer once the map is zoomed in far enough
+        text = re.sub(added, lambda m: m.group(1), text, count=1)
+        if f"layer_{name}._createLayer" in text or "grid._createLayer = " in text:
+            continue
+        anchor = re.search(rf"^([ \t]*)bounds_group\.addLayer\(layer_{name}\);", text, re.MULTILINE)
+        if anchor:
+            fix = TILE_CLICK_FIX.replace("__NAME__", name)
+            text = text[:anchor.start()] + anchor.group(1) + fix + text[anchor.start() + len(anchor.group(1)):]
+    return text, handled
+
+
 def region_marker(match):
     name = match.group(1)
     background, text = next((c for key, c in REGION_COLOURS.items() if key in name), REGION_COLOURS_DEFAULT)
@@ -187,10 +225,11 @@ def define_missing_label_layers(text):
 
 def main():
     site = Path(sys.argv[1] if len(sys.argv) > 1 else "site")
-    tiles = labels = onemap = grid = stops = listed = 0
+    tiles = labels = onemap = grid = stops = listed = fixed_tiles = 0
     for path in sorted(site.rglob("*.html")):
         text = path.read_text()
         patched, found, defined = define_missing_label_layers(text)
+        patched, fixed = fix_tile_layers(patched)
         patched, n = ONEMAP_LAYER.subn(patch_onemap, patched)
         patched, g = REGION_POINT.subn(region_marker, patched)
         g += patched.count("className: 'region-count'") if not g else 0  # already patched: re-runs are fine
@@ -203,6 +242,7 @@ def main():
         patched, r1 = LIST_REGIONS.subn("", patched)
         patched, r2 = LIST_ONEMAP.subn("", patched)
         listed += r1 + r2
+        fixed_tiles += fixed
         tiles, labels, onemap, grid, stops = tiles + found, labels + defined, onemap + n, grid + g, stops + st
         if patched != text:
             path.write_text(patched)
@@ -214,7 +254,7 @@ def main():
             path.write_text(patched, errors="surrogateescape")
             maps += n
     print(f"source map comments removed: {maps}")
-    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}; region markers: {grid}; bus stop markers: {stops}; layer list entries removed: {listed}")
+    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}; region markers: {grid}; bus stop markers: {stops}; layer list entries removed: {listed}; tile layers click-fixed: {fixed_tiles}")
     # fail loudly rather than ship a map that is broken or missing a required credit
     if not tiles:
         sys.exit("no vector tile layer found; did the lamp post tile export run?")
