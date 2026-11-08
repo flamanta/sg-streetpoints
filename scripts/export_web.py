@@ -121,7 +121,9 @@ def main():
     params["Data export"]["Precision"] = "8"
     params["Scale/Zoom"]["Extent"] = "Canvas extent"
     params["Scale/Zoom"]["Min zoom level"] = "11"  # OneMap has no tiles below this
-    params["Scale/Zoom"]["Max zoom level"] = "19"
+    # The lamp post tiles stop at zoom 16 and the tile library rounds each shape's radius to whole
+    # pixels when scaling them, so past zoom 18 the markers double in size. Stop zooming at 18.
+    params["Scale/Zoom"]["Max zoom level"] = "18"
     project.setTitle("Singapore street points")
     # qgis2web shows the project abstract as a box under the title; it is inserted as raw HTML
     metadata = project.metadata()
