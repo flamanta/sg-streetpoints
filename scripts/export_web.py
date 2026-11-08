@@ -5,8 +5,12 @@ with a minimal stand-in for QGIS's `iface`. Run inside a QGIS environment with t
 qgis2web plugin installed:
     QT_QPA_PLATFORM=offscreen python3 scripts/export_web.py [out_dir]
 """
+import os
 import shutil
 import sys
+import threading
+import time
+import traceback
 from collections import OrderedDict
 from pathlib import Path
 
@@ -22,6 +26,31 @@ TILE_MIN_ZOOM, TILE_MAX_ZOOM = 14, 16  # lamp posts only draw from about zoom 15
 sys.path.insert(0, str(ROOT / "scripts"))
 
 
+def rss_mb():
+    with open("/proc/self/status") as f:
+        for line in f:
+            if line.startswith("VmRSS"):
+                return int(line.split()[1]) // 1024
+    return -1
+
+
+def watch(interval=10):
+    """Print memory use and where the main thread is, so a killed job shows where it died."""
+    main = threading.main_thread().ident
+
+    def run():
+        while True:
+            time.sleep(interval)
+            frame = sys._current_frames().get(main)
+            where = " <- ".join(
+                f"{os.path.basename(f.filename)}:{f.lineno}:{f.name}"
+                for f in reversed(traceback.extract_stack(frame)[-3:])
+            ) if frame else "?"
+            print(f"[watch] rss={rss_mb()} MB at {where}", flush=True)
+
+    threading.Thread(target=run, daemon=True).start()
+
+
 class Iface:
     """The bits of QgisInterface that qgis2web's writers use."""
 
@@ -34,6 +63,13 @@ class Iface:
 
 def main():
     out_dir = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "site").resolve()
+
+    for path in ("/sys/fs/cgroup/memory.max", "/proc/meminfo"):
+        try:
+            print(path, open(path).read().splitlines()[0], flush=True)
+        except OSError:
+            pass
+    watch()
 
     qgs = QgsApplication([], True)
     qgs.initQgis()
@@ -50,6 +86,7 @@ def main():
     from qgis.gui import QgsMapCanvas
     from build_project import BASEMAP_TITLE, LAYERS
     from qgis2web.configparams import getDefaultParams
+    from qgis2web.feedbackDialog import Feedback
     from qgis2web.leafletWriter import LeafletWriter
 
     project = QgsProject.instance()
@@ -108,7 +145,11 @@ def main():
     tmp = ROOT / "raw" / "qgis2web"
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
-    result = writer.write(Iface(canvas), str(tmp))
+    class LoggingFeedback(Feedback):  # qgis2web's default feedback is silent
+        def showFeedback(self, feedback):
+            print(f"[qgis2web] rss={rss_mb()} MB {feedback}", flush=True)
+
+    result = writer.write(Iface(canvas), str(tmp), LoggingFeedback())
 
     shutil.rmtree(out_dir, ignore_errors=True)
     shutil.copytree(Path(result.folder), out_dir)
