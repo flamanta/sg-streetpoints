@@ -8,7 +8,10 @@ Usage: patch_site.py [site_dir]
    ReferenceError that aborts the rest of the script: no layer list, no labels.
    Define an empty one.
 2. OneMap basemap: its terms require the OneMap logo and attribution.
-3. Source map comments: browsers with DevTools open request each library's .map file,
+3. Grid counts: qgis2web draws labels as separate tooltips that lag behind their markers
+   while zooming and end up in the wrong place. Draw each bubble as a marker with the count
+   inside it, sized by count, so the two move together.
+4. Source map comments: browsers with DevTools open request each library's .map file,
    which is not used by the page and often missing (404) or rate limited (429).
 """
 import re
@@ -29,6 +32,21 @@ ONEMAP_LAYER = re.compile(
 )
 # "//# sourceMappingURL=x.map" at the end of a script, "/*# sourceMappingURL=x.map */" in CSS
 SOURCE_MAP_COMMENT = re.compile(r"^[ \t]*(?://|/\*)[#@] sourceMappingURL=[^\n]*?(?:\*/)?[ \t]*$", re.MULTILINE)
+# the grid-count layer's point factory, e.g. "return L.circleMarker(latlng, style_<name>_0(feature));"
+GRID_POINT = re.compile(r"return L\.circleMarker\(latlng, style_(\w*gridcounts\w*)_0\(feature\)\);")
+GRID_MARKER = """return L.marker(latlng, {
+                    pane: 'pane___NAME__',
+                    icon: (function () {
+                        var n = feature.properties['count'];
+                        var d = Math.round(22 + 9 * Math.log10(Math.max(n, 1)));
+                        return L.divIcon({
+                            className: 'grid-count',
+                            iconSize: [d, d],
+                            popupAnchor: [0, -d / 2],
+                            html: '<div style="width:' + d + 'px;height:' + d + 'px;line-height:' + (d - 4) + 'px;box-sizing:border-box;border:2px solid #fff;border-radius:50%;background:rgba(240,163,10,0.75);color:#000;font:600 11px sans-serif;text-align:center;">' + n + '</div>'
+                        });
+                    })()
+                });"""
 ATTRIBUTION_OPTION = re.compile(r"attribution:\s*'[^']*',?")
 # "var layer_<name> = L.vectorGrid.protobuf(" starts a vector tile layer
 TILE_LAYER = re.compile(r"^([ \t]*)var layer_(\w+) = L\.vectorGrid\.protobuf\(", re.MULTILINE)
@@ -63,12 +81,14 @@ def define_missing_label_layers(text):
 
 def main():
     site = Path(sys.argv[1] if len(sys.argv) > 1 else "site")
-    tiles = labels = onemap = 0
+    tiles = labels = onemap = grid = 0
     for path in sorted(site.rglob("*.html")):
         text = path.read_text()
         patched, found, defined = define_missing_label_layers(text)
         patched, n = ONEMAP_LAYER.subn(patch_onemap, patched)
-        tiles, labels, onemap = tiles + found, labels + defined, onemap + n
+        patched, g = GRID_POINT.subn(lambda m: GRID_MARKER.replace("__NAME__", m.group(1)), patched)
+        g += patched.count("className: 'grid-count'") if not g else 0  # already patched: re-runs are fine
+        tiles, labels, onemap, grid = tiles + found, labels + defined, onemap + n, grid + g
         if patched != text:
             path.write_text(patched)
     maps = 0
@@ -79,10 +99,12 @@ def main():
             path.write_text(patched, errors="surrogateescape")
             maps += n
     print(f"source map comments removed: {maps}")
-    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}")
+    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}; grid count markers: {grid}")
     # fail loudly rather than ship a map that is broken or missing a required credit
     if not tiles:
         sys.exit("no vector tile layer found; did the lamp post tile export run?")
+    if not grid:  # the map still works without the numbers, so warn rather than fail
+        print("::warning::grid count layer not found; the bubbles will have no numbers")
     if not onemap:
         sys.exit("OneMap tile layer not found; cannot add its required attribution")
 

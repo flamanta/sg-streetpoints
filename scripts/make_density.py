@@ -12,7 +12,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-CELL = 0.005  # degrees, about 550 m
+CELL = 0.02  # degrees, about 2.2 km: 160 bubbles, so the zoomed-out map stays fast
 
 
 def main():
