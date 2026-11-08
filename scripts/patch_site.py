@@ -20,10 +20,12 @@ Usage: patch_site.py [site_dir]
    popup ever opened. Remove getLatLng from the tile shapes. Also stop adding the tile layer to
    the map at load: at the start zoom it fetched about 1,200 tiles before the zoom limits
    removed it again, which tripped GitHub's rate limit (429).
-7. Debug panel: opening the map with ?debug in the address shows what the lamp post tile layer
+7. Title link: make the map title a link to the GitHub repository. qgis2web also uses the project
+   title as the page's <title>, so the link cannot be put in the QGIS project.
+8. Debug panel: opening the map with ?debug in the address shows what the lamp post tile layer
    is doing (zoom, on the map or not, tile requests by status, shapes drawn, errors), so a
    report from a browser tells us where it fails. Normal visitors never see it.
-8. Source map comments: browsers with DevTools open request each library's .map file,
+9. Source map comments: browsers with DevTools open request each library's .map file,
    which is not used by the page and often missing (404) or rate limited (429).
 """
 import re
@@ -64,6 +66,18 @@ REGION_MARKER = """return L.marker(latlng, {
 REGION_COLOURS = {"BusStop": ("rgba(28,126,214,0.8)", "#fff")}
 REGION_COLOURS_DEFAULT = ("rgba(240,163,10,0.75)", "#000")
 
+REPO_URL = "https://github.com/flamanta/sg-streetpoints"
+# qgis2web writes the title as: title.update = function () { this._div.innerHTML = '<h2>TEXT</h2>'; };
+TITLE_HEADING = re.compile(r"(title\.update = function \(\) \{\s*this\._div\.innerHTML = ')<h2>(.*?)</h2>(';)", re.DOTALL)
+
+
+def link_title(match):
+    start, text, end = match.groups()
+    if "<a " in text:  # already linked: re-runs are fine
+        return match.group(0)
+    return f'{start}<h2><a href="{REPO_URL}" target="_blank" rel="noopener noreferrer">{text}</a></h2>{end}'
+
+
 # layer list entries to drop: the "(regions)" layers and the OneMap basemap
 LIST_REGIONS = re.compile(r"\s*\{label: '[^']*\(regions\)', layer: \w+\},?")
 LIST_ONEMAP = re.compile(r"\s*\{label: \"OneMap\"[^}]*\},?")
@@ -87,6 +101,8 @@ SITE_CSS = """<style>
         .bus-stop-dot { display: block; width: 9px; height: 9px; box-sizing: border-box; border: 1px solid #fff; border-radius: 50%; background: rgba(28,126,214,1); }
         .bus-stop-label { display: none; position: absolute; left: 12px; top: -2px; font: 600 11px sans-serif; color: #000; white-space: nowrap; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; pointer-events: none; }
         #map.stop-labels .bus-stop-label { display: block; }
+        .info h2 a { color: inherit; text-decoration: none; }
+        .info h2 a:hover { text-decoration: underline; }
     </style>
     """
 # Installed in <head>, before any script runs, so the tile fetches at page load are counted.
@@ -225,10 +241,11 @@ def define_missing_label_layers(text):
 
 def main():
     site = Path(sys.argv[1] if len(sys.argv) > 1 else "site")
-    tiles = labels = onemap = grid = stops = listed = fixed_tiles = 0
+    tiles = labels = onemap = grid = stops = listed = fixed_tiles = title_links = 0
     for path in sorted(site.rglob("*.html")):
         text = path.read_text()
         patched, found, defined = define_missing_label_layers(text)
+        patched, titled = TITLE_HEADING.subn(link_title, patched)
         patched, fixed = fix_tile_layers(patched)
         patched, n = ONEMAP_LAYER.subn(patch_onemap, patched)
         patched, g = REGION_POINT.subn(region_marker, patched)
@@ -243,6 +260,7 @@ def main():
         patched, r2 = LIST_ONEMAP.subn("", patched)
         listed += r1 + r2
         fixed_tiles += fixed
+        title_links += titled
         tiles, labels, onemap, grid, stops = tiles + found, labels + defined, onemap + n, grid + g, stops + st
         if patched != text:
             path.write_text(patched)
@@ -254,7 +272,7 @@ def main():
             path.write_text(patched, errors="surrogateescape")
             maps += n
     print(f"source map comments removed: {maps}")
-    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}; region markers: {grid}; bus stop markers: {stops}; layer list entries removed: {listed}; tile layers click-fixed: {fixed_tiles}")
+    print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}; region markers: {grid}; bus stop markers: {stops}; layer list entries removed: {listed}; tile layers click-fixed: {fixed_tiles}; title links: {title_links}")
     # fail loudly rather than ship a map that is broken or missing a required credit
     if not tiles:
         sys.exit("no vector tile layer found; did the lamp post tile export run?")
@@ -263,6 +281,8 @@ def main():
         print("::warning::region layers not found; the bubbles will have no names or numbers")
     if not stops:
         print("::warning::bus stop layer not found; the stops will have no numbers")
+    if not title_links:
+        print("::warning::map title not found; it will not link to the repository")
     if not onemap:
         sys.exit("OneMap tile layer not found; cannot add its required attribution")
 

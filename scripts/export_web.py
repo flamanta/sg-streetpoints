@@ -125,10 +125,14 @@ def main():
     # pixels when scaling them, so past zoom 18 the markers double in size. Stop zooming at 18.
     params["Scale/Zoom"]["Max zoom level"] = "18"
     project.setTitle("Singapore street points")
-    # qgis2web shows the project abstract as a box under the title; it is inserted as raw HTML
+    # qgis2web shows the project abstract as a box under the title. It is inserted as raw HTML, with
+    # newlines turned into <br />, so the blank line is two newlines. Keep it under 240 characters:
+    # above that qgis2web collapses the box into a small "i" button.
     metadata = project.metadata()
     metadata.setAbstract(
-        'by <a href="https://github.com/flamanta" target="_blank" rel="noopener noreferrer">@flamanta</a>'
+        'by <a href="https://github.com/flamanta" target="_blank" rel="noopener noreferrer">@flamanta</a>\n\n'
+        "Interactive web map of Singapore's lamp posts and bus stops, built from data.gov.sg open data "
+        "with QGIS and qgis2web."
     )
     project.setMetadata(metadata)
     params["Appearance"]["Abstract"] = "upper right"
