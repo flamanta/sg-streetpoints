@@ -15,7 +15,10 @@ Usage: patch_site.py [site_dir]
    whose number is part of the marker, and show the numbers only when zoomed in.
 5. Layer list: the region bubbles switch on and off with the zoom level and OneMap is the fixed
    background, so neither should be a checkbox or radio button in the list.
-6. Source map comments: browsers with DevTools open request each library's .map file,
+6. Debug panel: opening the map with ?debug in the address shows what the lamp post tile layer
+   is doing (zoom, on the map or not, tile requests by status, shapes drawn, errors), so a
+   report from a browser tells us where it fails. Normal visitors never see it.
+7. Source map comments: browsers with DevTools open request each library's .map file,
    which is not used by the page and often missing (404) or rate limited (429).
 """
 import re
@@ -81,6 +84,58 @@ SITE_CSS = """<style>
         #map.stop-labels .bus-stop-label { display: block; }
     </style>
     """
+# Installed in <head>, before any script runs, so the tile fetches at page load are counted.
+DEBUG_SCRIPT = """<script id="lamp-debug">
+        (function () {
+            if (location.search.indexOf('debug') < 0) return;
+            var pbf = {}, errors = [];
+            var realFetch = window.fetch;
+            window.fetch = function (input) {
+                var url = typeof input === 'string' ? input : ((input && input.url) || '');
+                var p = realFetch.apply(this, arguments);
+                if (url.indexOf('.pbf') > -1) {
+                    p.then(function (r) { pbf[r.status] = (pbf[r.status] || 0) + 1; },
+                           function (e) { pbf.failed = (pbf.failed || 0) + 1; errors.push('fetch: ' + e); });
+                }
+                return p;
+            };
+            window.addEventListener('error', function (e) {
+                errors.push((e.message || 'error') + ' @' + String(e.filename || '').split('/').pop() + ':' + e.lineno);
+            });
+            window.addEventListener('unhandledrejection', function (e) {
+                var r = e.reason;
+                errors.push('promise: ' + ((r && (r.stack || r.message)) || r));
+            });
+            function lines() {
+                var out = [];
+                try {
+                    out.push('zoom: ' + map.getZoom() + '  center: ' + map.getCenter().lat.toFixed(4) + ', ' + map.getCenter().lng.toFixed(4));
+                    Object.keys(window).filter(function (k) { return /^layer_LTALampPost_\\d+$/.test(k); }).forEach(function (k) {
+                        var layer = window[k], pane = map.getPane('pane_' + k.slice(6));
+                        var box = pane ? pane.getBoundingClientRect() : null;
+                        out.push(k + ' on map: ' + map.hasLayer(layer) + '  tiles: ' + Object.keys(layer._tiles || {}).length +
+                                 '  shapes drawn: ' + (pane ? pane.querySelectorAll('path').length : 'no pane') +
+                                 '  tile z: ' + layer._tileZoom);
+                        out.push('pane z-index: ' + (pane && pane.style.zIndex) + '  size: ' + (box ? Math.round(box.width) + 'x' + Math.round(box.height) : '-'));
+                    });
+                    out.push('.pbf requests by status: ' + JSON.stringify(pbf));
+                    out.push('errors (' + errors.length + '): ' + (errors.slice(-3).join(' | ') || 'none'));
+                } catch (e) { out.push('debug panel error: ' + e); }
+                return out.join('\\n');
+            }
+            setInterval(function () {
+                var box = document.getElementById('lamp-debug-box');
+                if (!box && document.body) {
+                    box = document.createElement('pre');
+                    box.id = 'lamp-debug-box';
+                    box.style.cssText = 'position:fixed;left:8px;bottom:24px;z-index:99999;max-width:92vw;margin:0;padding:6px 8px;background:rgba(255,255,255,.92);border:1px solid #888;font:11px/1.3 monospace;white-space:pre-wrap;pointer-events:none;';
+                    document.body.appendChild(box);
+                }
+                if (box) box.textContent = lines();
+            }, 1000);
+        })();
+    </script>
+    """
 # stop numbers show from this zoom level
 STOP_LABEL_ZOOM = 16
 SITE_SCRIPT = """<script>
@@ -143,6 +198,8 @@ def main():
         st += patched.count("className: 'bus-stop'") if not st else 0
         if st and "bus-stop-label" not in text:  # first patch of this page: add the CSS and the zoom switch
             patched = patched.replace("</head>", SITE_CSS + "</head>", 1).replace("</body>", SITE_SCRIPT + "</body>", 1)
+        if 'id="lamp-debug"' not in patched:
+            patched = patched.replace("</head>", DEBUG_SCRIPT + "</head>", 1)
         patched, r1 = LIST_REGIONS.subn("", patched)
         patched, r2 = LIST_ONEMAP.subn("", patched)
         listed += r1 + r2
