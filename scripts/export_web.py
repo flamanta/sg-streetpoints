@@ -36,9 +36,16 @@ def main():
     qgs = QgsApplication([], True)
     qgs.initQgis()
 
-    # imported after initQgis: qgis2web needs a running QgsApplication.
-    # install_qgis2web.py puts the plugin in raw/qgis-plugins.
+    # qgis2web imports QGIS's `processing` module and calls native algorithms,
+    # neither of which a standalone script gets for free.
+    # install_qgis2web.py puts the plugin itself in raw/qgis-plugins.
+    sys.path.insert(0, str(Path(QgsApplication.pkgDataPath()) / "python" / "plugins"))
     sys.path.insert(0, str(ROOT / "raw" / "qgis-plugins"))
+    from qgis.analysis import QgsNativeAlgorithms
+    from processing.core.Processing import Processing
+
+    Processing.initialize()
+    QgsApplication.processingRegistry().addProvider(QgsNativeAlgorithms())
     from qgis.gui import QgsMapCanvas
     from build_project import LAYERS
     from qgis2web.configparams import getDefaultParams
