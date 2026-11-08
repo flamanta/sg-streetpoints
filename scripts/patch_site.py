@@ -20,6 +20,9 @@ Usage: patch_site.py [site_dir]
    popup ever opened. Remove getLatLng from the tile shapes. Also stop adding the tile layer to
    the map at load: at the start zoom it fetched about 1,200 tiles before the zoom limits
    removed it again, which tripped GitHub's rate limit (429).
+   Also fix the marker size past the last tile level: when the tiles are scaled up (zoom 17 and 18)
+   the library meant to shrink each circle's radius to compensate, but it sets an `r` attribute that
+   a <path> ignores, so circles came out 2x and 4x too big. Rewrite the path's radius instead.
 7. Title link: make the map title a link to the GitHub repository. qgis2web also uses the project
    title as the page's <title>, so the link cannot be put in the QGIS project.
 8. Debug panel: opening the map with ?debug in the address shows what the lamp post tile layer
@@ -197,6 +200,30 @@ TILE_CLICK_FIX = """// Leaflet treats a small shape that has getLatLng() as a ma
         """
 
 
+TILE_SCALE_FIX = """// Past the last tile level the tiles are CSS-scaled, and VectorGrid compensates by setting an `r`
+        // attribute, which a <path> ignores: the outline shrank but the circle came out 2x and 4x too big.
+        // Rewrite the circle's radius in the path data instead, and keep the outline compensation.
+        layer___NAME__._onZoomEnd = function () {
+            if (!this._map || this._tileZoom === undefined) { return; }
+            var mapZoom = this._map.getZoom();
+            var scale = this._tileZoom === mapZoom ? 1 : this._map.getZoomScale(this._tileZoom, mapZoom);
+            var pane = this._map.getPane(this.options.pane || 'tilePane');
+            if (!pane) { return; }
+            var paths = pane.querySelectorAll('path');
+            for (var i = 0; i < paths.length; i++) {
+                var p = paths[i];
+                if (p._leaflet_origWeight !== undefined) { p.setAttribute('stroke-width', p._leaflet_origWeight * scale); }
+                if (p._leaflet_origRadius === undefined) { continue; }
+                var m = /^M([-\\d.]+),([-\\d.]+)a([\\d.]+),/.exec(p.getAttribute('d') || '');
+                if (!m) { continue; }
+                var r = p._leaflet_origRadius * scale;
+                var cx = parseFloat(m[1]) + parseFloat(m[3]), cy = parseFloat(m[2]);
+                p.setAttribute('d', 'M' + (cx - r) + ',' + cy + 'a' + r + ',' + r + ' 0 1,0 ' + (2 * r) + ',0 a' + r + ',' + r + ' 0 1,0 ' + (-2 * r) + ',0 ');
+            }
+        };
+        """
+
+
 def fix_tile_layers(text):
     """Fix clicks on vector-tile points and do not add the tile layer at load.
 
@@ -207,12 +234,14 @@ def fix_tile_layers(text):
         added = rf"(bounds_group\.addLayer\(layer_{name}\);\n)[ \t]*map\.addLayer\(layer_{name}\);\n"
         # the zoom limits add the layer once the map is zoomed in far enough
         text = re.sub(added, lambda m: m.group(1), text, count=1)
-        if f"layer_{name}._createLayer" in text or "grid._createLayer = " in text:
-            continue
+        fixes = ""
+        if "grid._createLayer = " not in text:
+            fixes += TILE_CLICK_FIX.replace("__NAME__", name)
+        if f"layer_{name}._onZoomEnd = " not in text:
+            fixes += TILE_SCALE_FIX.replace("__NAME__", name)
         anchor = re.search(rf"^([ \t]*)bounds_group\.addLayer\(layer_{name}\);", text, re.MULTILINE)
-        if anchor:
-            fix = TILE_CLICK_FIX.replace("__NAME__", name)
-            text = text[:anchor.start()] + anchor.group(1) + fix + text[anchor.start() + len(anchor.group(1)):]
+        if fixes and anchor:
+            text = text[:anchor.start()] + anchor.group(1) + fixes + text[anchor.start() + len(anchor.group(1)):]
     return text, handled
 
 
