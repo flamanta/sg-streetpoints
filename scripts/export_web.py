@@ -36,9 +36,9 @@ def main():
     qgs = QgsApplication([], True)
     qgs.initQgis()
 
-    # imported after initQgis: qgis2web needs a running QgsApplication, and a
-    # standalone script doesn't get the profile's plugin directory on sys.path
-    sys.path.insert(0, str(Path(QgsApplication.qgisSettingsDirPath()) / "python" / "plugins"))
+    # imported after initQgis: qgis2web needs a running QgsApplication.
+    # install_qgis2web.py puts the plugin in raw/qgis-plugins.
+    sys.path.insert(0, str(ROOT / "raw" / "qgis-plugins"))
     from qgis.gui import QgsMapCanvas
     from build_project import LAYERS
     from qgis2web.configparams import getDefaultParams
