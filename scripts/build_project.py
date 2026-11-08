@@ -30,13 +30,20 @@ BUS_SCALE = 12000  # bus stops from zoom 15 ...
 BUS_REGION_SCALE = 20000  # ... the bus stop regions up to zoom 14
 REGION_ZOOMED_OUT_SCALE = 500000  # must not be 0: qgis2web reads 0 as zoom 19 and would never show the layer
 
+# One size for all three point layers. qgis2web draws a marker with radius = 2 x this many mm, so
+# 2.0 mm is an 8 px circle (plus a 1 px white outline). 8 px is also the size that stays exact when
+# the lamp post tiles are scaled past their last level (zoom 16): the tile library rounds each shape's
+# radius to whole pixels, so other sizes wobble between zoom 17 and 19. patch_site.py makes the bus
+# stop dots match.
+MARKER_SIZE_MM = 2.0
+
 # name, title, colour, size (mm), popup fields (used by export_web.py), min scale denominator (0 = always)
 # Listed top -> bottom as they stack on the map. The region layers have no colour or size here:
 # patch_site.py replaces their symbols on the web map.
 LAYERS = [
-    ("lta_lamp_post", "LTA Lamp Post", "#f0a30a", 2.0, ["LAMPPOST_NUM", "UNIQUE_ID", "lat", "lon"], LAMP_SCALE),
-    ("sla_lamp_post", "SLA Lamp Post", "#d9480f", 1.6, ["LAMPPOST_NUMBER", "STREET_NAME", "lat", "lon"], 50000),
-    ("lta_bus_stop", "LTA Bus Stop", "#1c7ed6", 2.4, ["BUS_STOP_NUM", "BUS_ROOF_NUM", "UNIQUE_ID", "lat", "lon"], BUS_SCALE),
+    ("lta_lamp_post", "LTA Lamp Post", "#f0a30a", MARKER_SIZE_MM, ["LAMPPOST_NUM", "UNIQUE_ID", "lat", "lon"], LAMP_SCALE),
+    ("sla_lamp_post", "SLA Lamp Post", "#d9480f", MARKER_SIZE_MM, ["LAMPPOST_NUMBER", "STREET_NAME", "lat", "lon"], 50000),
+    ("lta_bus_stop", "LTA Bus Stop", "#1c7ed6", MARKER_SIZE_MM, ["BUS_STOP_NUM", "BUS_ROOF_NUM", "UNIQUE_ID", "lat", "lon"], BUS_SCALE),
     ("lta_lamp_post_regions", "LTA Lamp Post (regions)", None, None, ["name", "count"], REGION_SCALE),
     ("lta_bus_stop_regions", "LTA Bus Stop (regions)", None, None, ["name", "count"], BUS_REGION_SCALE),
 ]

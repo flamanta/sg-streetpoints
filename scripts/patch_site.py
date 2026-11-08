@@ -76,16 +76,16 @@ STOP_MARKER = """return L.marker(latlng, {
                     keyboard: false,
                     icon: L.divIcon({
                         className: 'bus-stop',
-                        iconSize: [12, 12],
-                        popupAnchor: [0, -6],
+                        iconSize: [9, 9],
+                        popupAnchor: [0, -4.5],
                         html: '<span class="bus-stop-dot"></span><span class="bus-stop-label">' + feature.properties['BUS_STOP_NUM'] + '</span>'
                     })
                 });"""
 SITE_CSS = """<style>
         /* Leaflet positions markers with position:absolute, so do not set position on .bus-stop;
            the label is positioned against the marker itself. */
-        .bus-stop-dot { display: block; width: 12px; height: 12px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; background: rgba(28,126,214,1); }
-        .bus-stop-label { display: none; position: absolute; left: 15px; top: -1px; font: 600 11px sans-serif; color: #000; white-space: nowrap; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; pointer-events: none; }
+        .bus-stop-dot { display: block; width: 9px; height: 9px; box-sizing: border-box; border: 1px solid #fff; border-radius: 50%; background: rgba(28,126,214,1); }
+        .bus-stop-label { display: none; position: absolute; left: 12px; top: -2px; font: 600 11px sans-serif; color: #000; white-space: nowrap; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; pointer-events: none; }
         #map.stop-labels .bus-stop-label { display: block; }
     </style>
     """
