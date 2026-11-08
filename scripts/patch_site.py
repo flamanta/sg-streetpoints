@@ -8,6 +8,8 @@ Usage: patch_site.py [site_dir]
    ReferenceError that aborts the rest of the script: no layer list, no labels.
    Define an empty one.
 2. OneMap basemap: its terms require the OneMap logo and attribution.
+3. Source map comments: browsers with DevTools open request each library's .map file,
+   which is not used by the page and often missing (404) or rate limited (429).
 """
 import re
 import sys
@@ -25,6 +27,8 @@ ONEMAP_ATTRIBUTION = (
 ONEMAP_LAYER = re.compile(
     r"(L\.tileLayer\('https://www\.onemap\.gov\.sg/[^']*',\s*\{)(.*?)(\}\);)", re.DOTALL
 )
+# "//# sourceMappingURL=x.map" at the end of a script, "/*# sourceMappingURL=x.map */" in CSS
+SOURCE_MAP_COMMENT = re.compile(r"^[ \t]*(?://|/\*)[#@] sourceMappingURL=[^\n]*?(?:\*/)?[ \t]*$", re.MULTILINE)
 ATTRIBUTION_OPTION = re.compile(r"attribution:\s*'[^']*',?")
 # "var layer_<name> = L.vectorGrid.protobuf(" starts a vector tile layer
 TILE_LAYER = re.compile(r"^([ \t]*)var layer_(\w+) = L\.vectorGrid\.protobuf\(", re.MULTILINE)
@@ -67,6 +71,14 @@ def main():
         tiles, labels, onemap = tiles + found, labels + defined, onemap + n
         if patched != text:
             path.write_text(patched)
+    maps = 0
+    for path in sorted([*site.rglob("*.js"), *site.rglob("*.css")]):
+        text = path.read_text(errors="surrogateescape")
+        patched, n = SOURCE_MAP_COMMENT.subn("", text)
+        if n:
+            path.write_text(patched, errors="surrogateescape")
+            maps += n
+    print(f"source map comments removed: {maps}")
     print(f"vector tile layers: {tiles}; label layers defined: {labels}; OneMap attribution patched: {onemap}")
     # fail loudly rather than ship a map that is broken or missing a required credit
     if not tiles:
