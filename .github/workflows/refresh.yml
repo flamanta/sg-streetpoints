@@ -1,0 +1,41 @@
+name: Refresh data
+
+on:
+  schedule:
+    - cron: "0 2 1 * *" # 1st of each month, 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch source GeoJSON
+        id: fetch
+        env:
+          DATA_GOV_SG_API_KEY: ${{ secrets.DATA_GOV_SG_API_KEY }}
+        run: python scripts/fetch_geojson.py
+
+      - name: Inject lat/lon and slim properties
+        if: steps.fetch.outputs.result == 'changed'
+        run: python scripts/inject_latlon.py
+
+      - name: Commit updated data
+        if: steps.fetch.outputs.result == 'changed'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git commit -m "Refresh data.gov.sg GeoJSON"
+          git push
+
+      # qgis2web export + GitHub Pages deploy is added after the headless
+      # export spike (plan step 5), which needs QGIS/Docker.

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "lta_lamp_post",
+    "dataset_id": "d_ca109de3e83efdd9a10bc5f3dda70a98",
+    "slim_props": ["LAMPPOST_NUM", "UNIQUE_ID"]
+  },
+  {
+    "name": "sla_lamp_post",
+    "dataset_id": "d_1ad7921e25264140dc361e193c095c52",
+    "slim_props": ["LAMPPOST_NUMBER", "STREET_NAME"]
+  },
+  {
+    "name": "lta_bus_stop",
+    "dataset_id": "d_3f172c6feb3f4f92a2f47d93eed2908a",
+    "slim_props": ["BUS_STOP_NUM", "BUS_ROOF_NUM", "UNIQUE_ID"]
+  }
+]
