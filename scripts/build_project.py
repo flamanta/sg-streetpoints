@@ -21,24 +21,24 @@ from qgis.core import (
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "qgis" / "sg-streetpoints.qgz"
 
-# Each point layer has a grid of counts for when the map is zoomed out and the individual
+# Each point layer has five regional count bubbles for when the map is zoomed out and the individual
 # points for when it is zoomed in. qgis2web turns a scale into a web zoom level
 # (utils.scaleToZoom), so these are chosen to land on adjacent levels with no overlap.
 LAMP_SCALE = 18000  # lamp posts from zoom 14 ...
-DENSITY_SCALE = 36000  # ... the lamp post grid up to zoom 13
+REGION_SCALE = 36000  # ... the lamp post regions up to zoom 13
 BUS_SCALE = 12000  # bus stops from zoom 15 ...
-BUS_DENSITY_SCALE = 20000  # ... the bus stop grid up to zoom 14
-DENSITY_ZOOMED_OUT_SCALE = 500000  # must not be 0: qgis2web reads 0 as zoom 19 and would never show the layer
+BUS_REGION_SCALE = 20000  # ... the bus stop regions up to zoom 14
+REGION_ZOOMED_OUT_SCALE = 500000  # must not be 0: qgis2web reads 0 as zoom 19 and would never show the layer
 
 # name, title, colour, size (mm), popup fields (used by export_web.py), min scale denominator (0 = always)
-# Listed top -> bottom as they stack on the map. The grid layers have no colour or size here:
+# Listed top -> bottom as they stack on the map. The region layers have no colour or size here:
 # patch_site.py replaces their symbols on the web map.
 LAYERS = [
     ("lta_lamp_post", "LTA Lamp Post", "#f0a30a", 2.0, ["LAMPPOST_NUM", "UNIQUE_ID", "lat", "lon"], LAMP_SCALE),
     ("sla_lamp_post", "SLA Lamp Post", "#d9480f", 1.6, ["LAMPPOST_NUMBER", "STREET_NAME", "lat", "lon"], 50000),
     ("lta_bus_stop", "LTA Bus Stop", "#1c7ed6", 2.4, ["BUS_STOP_NUM", "BUS_ROOF_NUM", "UNIQUE_ID", "lat", "lon"], BUS_SCALE),
-    ("lta_lamp_post_density", "LTA Lamp Post (grid counts)", None, None, ["count"], DENSITY_SCALE),
-    ("lta_bus_stop_density", "LTA Bus Stop (grid counts)", None, None, ["count"], BUS_DENSITY_SCALE),
+    ("lta_lamp_post_regions", "LTA Lamp Post (regions)", None, None, ["name", "count"], REGION_SCALE),
+    ("lta_bus_stop_regions", "LTA Bus Stop (regions)", None, None, ["name", "count"], BUS_REGION_SCALE),
 ]
 
 BASEMAP_TITLE = "OneMap"
@@ -60,7 +60,7 @@ def style(layer, colour, size, minscale):
         layer.setMaximumScale(0)
 
 
-def style_density(layer, max_scale):
+def style_regions(layer, max_scale):
     # One uniform symbol; patch_site.py replaces it on the web map with a bubble sized by
     # count with the number inside. qgis2web's graduated-size styling failed on this layer
     # in CI (IndexError in getSymbolAsStyle), so keep it simple.
@@ -71,7 +71,7 @@ def style_density(layer, max_scale):
     layer.setRenderer(QgsSingleSymbolRenderer(symbol))
     layer.setScaleBasedVisibility(True)
     layer.setMaximumScale(max_scale)  # hidden once zoomed in past this
-    layer.setMinimumScale(DENSITY_ZOOMED_OUT_SCALE)
+    layer.setMinimumScale(REGION_ZOOMED_OUT_SCALE)
 
 
 def main():
@@ -91,8 +91,8 @@ def main():
         layer = QgsVectorLayer(str(ROOT / "data" / f"{name}.geojson"), title, "ogr")
         if not layer.isValid():
             raise SystemExit(f"layer failed to load: {name}")
-        if name.endswith("_density"):
-            style_density(layer, minscale)
+        if name.endswith("_regions"):
+            style_regions(layer, minscale)
         else:
             style(layer, colour, size, minscale)
         project.addMapLayer(layer)

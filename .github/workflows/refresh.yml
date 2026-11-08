@@ -30,9 +30,9 @@ jobs:
         if: steps.fetch.outputs.result == 'changed'
         run: python scripts/inject_latlon.py
 
-      - name: Build lamp post density grid
+      - name: Summarise points into regions
         if: steps.fetch.outputs.result == 'changed'
-        run: python scripts/make_density.py
+        run: python scripts/make_regions.py
 
       - name: Commit updated data
         if: steps.fetch.outputs.result == 'changed'

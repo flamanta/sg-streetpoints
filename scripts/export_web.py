@@ -131,7 +131,7 @@ def main():
     writer.interactive = [True] * n
     writer.json = [True] * n
     # The 126k LTA lamp posts are served as vector tiles (only the tiles in view
-    # load). The zoomed-out overview is the small grid-count layer, so no marker
+    # load). The zoomed-out overview is the small regions layer, so no marker
     # clustering. Everything else stays plain GeoJSON.
     writer.cluster = [False] * n
     writer.pbfVectorTile = [
