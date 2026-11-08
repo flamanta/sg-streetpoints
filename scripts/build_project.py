@@ -34,7 +34,7 @@ DENSITY_ZOOMED_OUT_SCALE = 500000  # must not be 0: qgis2web reads 0 as zoom 19 
 # name, title, colour, size (mm), popup fields (used by export_web.py), min scale denominator (0 = always)
 # Listed top -> bottom as they stack on the map.
 LAYERS = [
-    ("lta_lamp_post", "LTA Lamp Post", "#f0a30a", 1.2, ["LAMPPOST_NUM", "UNIQUE_ID", "lat", "lon"], LAMP_SCALE),
+    ("lta_lamp_post", "LTA Lamp Post", "#f0a30a", 2.0, ["LAMPPOST_NUM", "UNIQUE_ID", "lat", "lon"], LAMP_SCALE),
     ("sla_lamp_post", "SLA Lamp Post", "#d9480f", 1.6, ["LAMPPOST_NUMBER", "STREET_NAME", "lat", "lon"], 50000),
     ("lta_bus_stop", "LTA Bus Stop", "#1c7ed6", 2.4, ["BUS_STOP_NUM", "BUS_ROOF_NUM", "UNIQUE_ID", "lat", "lon"], 0),
     ("lta_lamp_post_density", "LTA Lamp Post (grid counts)", None, None, ["count"], 0),
