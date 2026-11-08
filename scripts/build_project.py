@@ -60,8 +60,9 @@ def style(layer, colour, size, minscale):
 
 
 def style_density(layer):
-    # One uniform bubble with the count printed on it. qgis2web's graduated-size styling
-    # failed on this layer in CI (IndexError in getSymbolAsStyle), so keep it simple.
+    # One uniform symbol; patch_site.py replaces it on the web map with a bubble sized by
+    # count with the number inside. qgis2web's graduated-size styling failed on this layer
+    # in CI (IndexError in getSymbolAsStyle), so keep it simple.
     symbol = QgsMarkerSymbol.createSimple(
         {"name": "circle", "color": "240,163,10,170", "outline_color": "#ffffff",
          "outline_width": "0.3", "size": "6"}
@@ -70,7 +71,8 @@ def style_density(layer):
     layer.setScaleBasedVisibility(True)
     layer.setMaximumScale(DENSITY_SCALE)  # hidden once zoomed in past this
     layer.setMinimumScale(DENSITY_ZOOMED_OUT_SCALE)
-    label_layer(layer, "count", 9)
+    # No QGIS label: qgis2web draws labels as separate tooltips that lag behind the
+    # bubbles while zooming. patch_site.py puts the count inside the marker instead.
 
 
 def label_layer(layer, field, size, max_scale=0):
