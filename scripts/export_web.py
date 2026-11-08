@@ -123,6 +123,13 @@ def main():
     params["Scale/Zoom"]["Min zoom level"] = "11"  # OneMap has no tiles below this
     params["Scale/Zoom"]["Max zoom level"] = "19"
     project.setTitle("Singapore street points")
+    # qgis2web shows the project abstract as a box under the title; it is inserted as raw HTML
+    metadata = project.metadata()
+    metadata.setAbstract(
+        'by <a href="https://github.com/flamanta" target="_blank" rel="noopener noreferrer">@flamanta</a>'
+    )
+    project.setMetadata(metadata)
+    params["Appearance"]["Abstract"] = "upper right"
     writer.params = params
     writer.layers = layers  # qgis2web expects bottom -> top
     writer.groups = {}
