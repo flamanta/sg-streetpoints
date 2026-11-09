@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software or map, please cite it using the metadata below."
+title: "sg-streetpoints: Interactive web map of Singapore's lamp posts and bus stops"
+abstract: >-
+  A web map of Singapore LTA lamp posts, SLA lamp posts and LTA bus stops,
+  built with QGIS and qgis2web from open data on data.gov.sg. A GitHub Action
+  refreshes the data monthly and republishes the map to GitHub Pages.
+type: software
+authors:
+  - family-names: Cher
+    given-names: Wei Min
+    orcid: "https://orcid.org/0009-0002-6704-5011"
+version: 1.1.1
+date-released: "2026-11-09"
+license: MIT
+repository-code: "https://github.com/flamanta/sg-streetpoints"
+url: "https://flamanta.github.io/sg-streetpoints/"
+keywords:
+  - Singapore
+  - geojson
+  - leaflet
+  - qgis2web
