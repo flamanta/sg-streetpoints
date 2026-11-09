@@ -1,5 +1,8 @@
 # SG Street Points
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24074189.svg)](https://doi.org/10.5281/zenodo.24074189)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A web map of Singapore lamp posts and bus stops, built with QGIS and qgis2web from open data on [data.gov.sg](https://data.gov.sg). A GitHub Action refreshes the data monthly and republishes the map to GitHub Pages.
 
 ## Data sources and attribution
@@ -26,3 +29,28 @@ It is not endorsed by or affiliated with LTA, SLA or the Singapore Government.
 Dataset IDs and the properties kept for each layer are set in `config/datasets.json`. An optional `DATA_GOV_SG_API_KEY` repository secret raises the API rate limits.
 
 The background map is [OneMap](https://www.onemap.gov.sg/), © contributors, Singapore Land Authority, used under the [OneMap terms of use](https://www.onemap.gov.sg/legal/termsofuse.html).
+
+## License
+
+The code in this repository is released under the [MIT License](LICENSE). The data is not covered by it: it remains under the [Singapore Open Data Licence version 1.0](https://data.gov.sg/open-data-licence), and the OneMap basemap under the OneMap terms of use.
+
+## Citation
+
+To cite this project, use the DOI above (it always points to the latest version), or the metadata in [`CITATION.cff`](CITATION.cff).
+
+### APA:
+
+Cher, W. M. (2026). *sg-streetpoints: Interactive web map of Singapore's lamp posts and bus stops* [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.24074189
+
+### BibTeX:
+
+```bibtex
+@misc{cher_sg_streetpoints,
+  author    = {Cher, Wei Min},
+  title     = {{sg-streetpoints: Interactive web map of Singapore's lamp posts and bus stops}},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.24074189},
+  url       = {https://doi.org/10.5281/zenodo.24074189}
+}
+```
