@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-LAYERS = ["lta_lamp_post", "lta_bus_stop"]
+LAYERS = ["lta_lamp_post", "sla_lamp_post", "lta_bus_stop"]
 
 # Anchor (lat, lon) for each region. These are hand-picked, not official boundaries: Central is
 # around Toa Payoh and Bishan, South is the city and harbour, and North, East and West are
