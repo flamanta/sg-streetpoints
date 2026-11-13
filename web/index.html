@@ -95,7 +95,7 @@ const map = new maplibregl.Map({
         maxzoom: 16,
       },
       sla_lamp_post: { type: 'geojson', data: base + 'data/sla_lamp_post.geojson' },
-      lta_bus_stop: { type: 'geojson', data: base + 'data/lta_bus_stop.geojson' },
+      lta_bus_stop: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },   // filled by loadBusStops()
     },
     layers: [{ id: 'onemap', type: 'raster', source: 'onemap' }],
   },
@@ -142,6 +142,16 @@ Promise.all(TYPES.map(t => fetch(base + `data/${t.id}_regions.geojson`).then(r =
   }
   updateBubbles();
 });
+
+// The bus stop file is not needed until zoom 15, so it loads once the first view is drawn (or earlier, as soon as
+// someone zooms in past 13), instead of competing with MapLibre and the basemap for the connection at startup.
+let busLoading = false;
+function loadBusStops() {
+  if (busLoading) return;
+  busLoading = true;
+  map.getSource('lta_bus_stop').setData(base + 'data/lta_bus_stop.geojson');
+}
+map.once('idle', loadBusStops);
 
 const visible = { lta_lamp_post: true, sla_lamp_post: true, lta_bus_stop: true };
 function updateBubbles() {
@@ -195,7 +205,7 @@ map.once('style.load', () => {
     map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
   }
-  map.on('zoom', updateBubbles);
+  map.on('zoom', () => { updateBubbles(); if (map.getZoom() >= 13) loadBusStops(); });
   map.on('resize', updateBubbles);
   updateBubbles();
 });
