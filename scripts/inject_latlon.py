@@ -21,8 +21,9 @@ def slim(ds, raw):
             sys.exit(f"{ds['name']}: non-Point or missing geometry")
         lon, lat = (round(c, PRECISION) for c in geom["coordinates"][:2])
         props = {k: f["properties"].get(k) for k in ds["slim_props"]}
-        # Text, not numbers: qgis2web re-exports numeric fields with its own
-        # precision and was cutting these to 5 decimals. Text also keeps trailing zeros.
+        # Text, not numbers, so the exact 8 decimals (trailing zeros included) survive. The LTA lamp
+        # post tiles carry these as their only exact coordinates (tile geometry is accurate to ~15 cm),
+        # and build_site.py checks the bus stop file against them before dropping them.
         props["lat"], props["lon"] = f"{lat:.{PRECISION}f}", f"{lon:.{PRECISION}f}"
         features.append(
             {"type": "Feature", "properties": props,
