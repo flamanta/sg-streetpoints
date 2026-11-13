@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Singapore Street Points</title>
+<link rel="stylesheet" href="lib/maplibre-gl.css">
+<style>
+  html, body, #map { height: 100%; margin: 0; }
+  body { font: 13px/1.4 system-ui, sans-serif; }
+  #title { position: absolute; z-index: 2; top: 10px; left: 10px; background: #fffd; padding: 6px 10px; border-radius: 6px; }
+  #title a { color: #1c7ed6; text-decoration: none; }
+  #title { max-width: 260px; }
+  #abstract { margin-top: 4px; font-size: 12px; color: #333; }
+  #logo { position: absolute; z-index: 2; bottom: 24px; left: 10px; }
+  #logo img { height: 24px; }
+  #layers { position: absolute; z-index: 2; top: 10px; right: 50px; background: #fffd; padding: 6px 10px; border-radius: 6px; }
+  #layers label { display: block; cursor: pointer; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 1px solid #fff; box-shadow: 0 0 0 1px #0003; margin-right: 4px; }
+  #debug { position: absolute; z-index: 2; bottom: 24px; right: 10px; background: #000a; color: #fff; padding: 6px 10px; border-radius: 6px; font: 12px monospace; white-space: pre; display: none; }
+  .card { cursor: pointer; background: #fffe; border: 1px solid #0003; border-radius: 8px; padding: 3px 8px 4px; box-shadow: 0 1px 4px #0004; min-width: 74px; }
+  .card:hover { background: #fff; }
+  .card-name { font-weight: 600; font-size: 12px; text-align: center; border-bottom: 1px solid #0002; margin-bottom: 2px; }
+  .card .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; line-height: 16px; }
+  .card .dot { width: 10px; height: 10px; margin: 0; flex: none; }
+  .card .n { font-variant-numeric: tabular-nums; }
+  .maplibregl-popup-content { font-size: 13px; }
+  .maplibregl-popup-content td { padding: 1px 6px 1px 0; }
+  .maplibregl-popup-content td:first-child { color: #666; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="title"><b><a href="https://github.com/flamanta/sg-streetpoints" target="_blank" rel="noopener noreferrer">Singapore street points</a></b><div id="abstract">by <a href="https://github.com/flamanta" target="_blank" rel="noopener noreferrer">@flamanta</a><br><br>Interactive web map of Singapore's lamp posts and bus stops, built from data.gov.sg open data with MapLibre.</div></div>
+<div id="layers">
+  <label><input type="checkbox" data-layers="lta_lamp_post,lta_lamp_post_regions" checked><span class="dot" style="background:#f0a30a"></span>LTA Lamp Post</label>
+  <label><input type="checkbox" data-layers="sla_lamp_post" checked><span class="dot" style="background:#d9480f"></span>SLA Lamp Post</label>
+  <label><input type="checkbox" data-layers="lta_bus_stop,lta_bus_stop_regions" checked><span class="dot" style="background:#1c7ed6"></span>LTA Bus Stop</label>
+</div>
+<a id="logo" href="https://www.onemap.gov.sg/" target="_blank" rel="noopener"><img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" alt="OneMap"></a>
+<div id="debug"></div>
+<script src="lib/maplibre-gl.js"></script>
+<script>
+const SWITCH_ZOOM = 15;          // regional bubbles below, individual points from here
+const POINT_RADIUS = 4;          // 8 px across, same as the Leaflet map
+const base = location.href.replace(/[^/]*$/, '');
+
+const POPUPS = {
+  lta_lamp_post: ['LAMPPOST_NUM', 'UNIQUE_ID', 'lat', 'lon'],
+  sla_lamp_post: ['LAMPPOST_NUMBER', 'STREET_NAME', 'lat', 'lon'],
+  lta_bus_stop: ['BUS_STOP_NUM', 'BUS_ROOF_NUM', 'UNIQUE_ID', 'lat', 'lon'],
+};
+
+const map = new maplibregl.Map({
+  container: 'map',
+  bounds: [[103.60, 1.20], [104.05, 1.48]],
+  minZoom: 11,
+  maxZoom: 18,
+  attributionControl: { compact: true },
+  style: {
+    version: 8,
+    sources: {
+      onemap: {
+        type: 'raster',
+        tiles: ['https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: 'Map &copy; <a href="https://www.onemap.gov.sg/">OneMap</a> &middot; Data from <a href="https://data.gov.sg/">data.gov.sg</a> (Singapore Open Data Licence)',
+      },
+      lta_lamp_post: {
+        type: 'vector',
+        tiles: [base + 'tiles/{z}/{x}/{y}.pbf'],
+        minzoom: 15,
+        maxzoom: 16,
+      },
+      sla_lamp_post: { type: 'geojson', data: base + 'data/sla_lamp_post.geojson' },
+      lta_bus_stop: { type: 'geojson', data: base + 'data/lta_bus_stop.geojson' },
+    },
+    layers: [{ id: 'onemap', type: 'raster', source: 'onemap' }],
+  },
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+function circle(id, source, colour, extra = {}) {
+  return {
+    id, source, type: 'circle',
+    paint: {
+      'circle-radius': POINT_RADIUS, 'circle-color': colour,
+      'circle-stroke-color': '#fff', 'circle-stroke-width': 1,
+      'circle-opacity': 0.9,
+    },
+    ...extra,
+  };
+}
+
+// One card per region listing all three data types, so the numbers can never overlap each other.
+// Cards are HTML markers because the style has no font glyphs to draw text with.
+const TYPES = [
+  { id: 'lta_lamp_post', colour: '#f0a30a', label: 'LTA lamp posts' },
+  { id: 'sla_lamp_post', colour: '#d9480f', label: 'SLA lamp posts' },
+  { id: 'lta_bus_stop',  colour: '#1c7ed6', label: 'LTA bus stops' },
+];
+const cards = [];
+Promise.all(TYPES.map(t => fetch(base + `data/${t.id}_regions.geojson`).then(r => r.json()))).then(all => {
+  const regions = {};   // name -> { pos, counts }
+  all.forEach((fc, i) => fc.features.forEach(f => {
+    const r = regions[f.properties.name] ||= { counts: {} };
+    r.counts[TYPES[i].id] = f.properties.count;
+    if (i === 0 || !r.pos) r.pos = f.geometry.coordinates;   // anchor on the lamp post centroid
+  }));
+  for (const [name, r] of Object.entries(regions)) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.title = 'Click to zoom in';
+    el.innerHTML = `<div class="card-name">${name}</div>` + TYPES.map(t =>
+      `<div class="row" data-type="${t.id}"><span class="dot" style="background:${t.colour}"></span>` +
+      `<span class="n">${r.counts[t.id] ? r.counts[t.id].toLocaleString() : '&ndash;'}</span></div>`).join('');
+    el.addEventListener('click', () => map.easeTo({ center: r.pos, zoom: SWITCH_ZOOM }));
+    new maplibregl.Marker({ element: el }).setLngLat(r.pos).addTo(map);
+    cards.push(el);
+  }
+  updateBubbles();
+});
+
+const visible = { lta_lamp_post: true, sla_lamp_post: true, lta_bus_stop: true };
+function updateBubbles() {
+  const zoomedOut = map.getZoom() < SWITCH_ZOOM;
+  for (const el of cards) {
+    let any = false;
+    el.querySelectorAll('.row').forEach(row => {
+      const on = visible[row.dataset.type];
+      row.style.display = on ? 'flex' : 'none';
+      any = any || on;
+    });
+    el.style.display = zoomedOut && any ? 'block' : 'none';
+  }
+}
+
+map.once('style.load', () => {
+  map.addLayer(circle('lta_lamp_post', 'lta_lamp_post', '#f0a30a', { 'source-layer': 'lta_lamp_post', minzoom: SWITCH_ZOOM }));
+  map.addLayer(circle('sla_lamp_post', 'sla_lamp_post', '#d9480f', { minzoom: SWITCH_ZOOM }));
+  map.addLayer(circle('lta_bus_stop', 'lta_bus_stop', '#1c7ed6', { minzoom: SWITCH_ZOOM }));
+
+  for (const id of Object.keys(POPUPS)) {
+    map.on('click', id, e => {
+      const f = e.features[0];
+      const rows = POPUPS[id].map(k => `<tr><td>${k}</td><td>${f.properties[k] ?? ''}</td></tr>`).join('');
+      new maplibregl.Popup({ maxWidth: '260px' }).setLngLat(e.lngLat)
+        .setHTML(`<table>${rows}</table>`).addTo(map);
+    });
+    map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
+  }
+  map.on('zoom', updateBubbles);
+  updateBubbles();
+});
+
+document.querySelectorAll('#layers input').forEach(box => box.addEventListener('change', () => {
+  const ids = box.dataset.layers.split(',');
+  visible[ids[0]] = box.checked;
+  if (map.getLayer(ids[0])) map.setLayoutProperty(ids[0], 'visibility', box.checked ? 'visible' : 'none');
+  updateBubbles();
+}));
+
+// ?debug: zoom, point counts on screen, errors
+if (/[?&]debug/.test(location.search)) {
+  const box = document.getElementById('debug'); box.style.display = 'block';
+  const errors = [];
+  map.on('error', e => errors.push(String(e.error && e.error.message || e.error)));
+  const draw = () => {
+    const ids = ['lta_lamp_post', 'sla_lamp_post', 'lta_bus_stop'].filter(i => map.getLayer(i));
+    const n = ids.length ? map.queryRenderedFeatures({ layers: ids }).length : 0;
+    box.textContent = `zoom ${map.getZoom().toFixed(2)}\nfeatures on screen ${n}\nerrors ${errors.length}${errors.length ? '\n' + errors.slice(-2).join('\n') : ''}`;
+  };
+  map.on('render', draw);
+}
+window.map = map;
+</script>
+</body>
+</html>
