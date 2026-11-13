@@ -61,30 +61,29 @@ jobs:
     # always export on a manual run so the map can be rebuilt without new data
     if: needs.refresh.outputs.result == 'changed' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    container: qgis/qgis:ltr
     env:
-      QT_QPA_PLATFORM: offscreen
+      TIPPECANOE_VERSION: "2.79.0"
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }} # pick up the data commit made above
 
-      - name: Install qgis2web
-        run: python3 scripts/install_qgis2web.py
-
-      - name: Build QGIS project
-        run: python3 scripts/build_project.py
-
-      - name: Export web map
-        run: python3 scripts/export_web.py site
-
-      - name: Patch web map (canvas tiles, OneMap attribution)
-        run: python3 scripts/patch_site.py site
-
-      - uses: actions/upload-artifact@v7
+      - uses: actions/setup-python@v7
         with:
-          name: qgis-project
-          path: qgis/sg-streetpoints.qgz
+          python-version: "3.12"
+
+      - name: Build tippecanoe
+        # Ubuntu has no tippecanoe package, so build the pinned release from source.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev zlib1g-dev
+          git clone --depth 1 --branch "$TIPPECANOE_VERSION" https://github.com/felt/tippecanoe.git /tmp/tippecanoe
+          make -C /tmp/tippecanoe -j"$(nproc)"
+          sudo make -C /tmp/tippecanoe install
+          tippecanoe --version
+
+      - name: Build site (page, data, lamp post tiles, MapLibre)
+        run: python scripts/build_site.py --out site
 
       - uses: actions/upload-pages-artifact@v5
         with:
