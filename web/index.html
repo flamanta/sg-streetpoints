@@ -71,6 +71,8 @@ const POPUPS = {
   lta_bus_stop: ['BUS_STOP_NUM', 'BUS_ROOF_NUM', 'UNIQUE_ID', 'lat', 'lon'],
 };
 
+const EMPTY = { type: 'FeatureCollection', features: [] };
+
 const map = new maplibregl.Map({
   container: 'map',
   center: [103.816, 1.34],   // halfway between the West and East cards, so both fit on a narrow screen
@@ -95,7 +97,7 @@ const map = new maplibregl.Map({
         maxzoom: 16,
       },
       sla_lamp_post: { type: 'geojson', data: base + 'data/sla_lamp_post.geojson' },
-      lta_bus_stop: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },   // filled by loadBusStops()
+      lta_bus_stop: { type: 'geojson', data: EMPTY },   // filled by loadBusStops(), later
     },
     layers: [{ id: 'onemap', type: 'raster', source: 'onemap' }],
   },
@@ -149,7 +151,25 @@ let busLoading = false;
 function loadBusStops() {
   if (busLoading) return;
   busLoading = true;
-  map.getSource('lta_bus_stop').setData(base + 'data/lta_bus_stop.geojson');
+  loadBusPoints();
+}
+
+// The bus stop file has no lat/lon text (the build drops it to save download). The popup's lat/lon come from the
+// file's own coordinates instead, exact to 8 decimals. They are not read back from the map, which rounds the
+// geometry to about 2 cm. So keep them in one compact array (16 bytes a point, indexed by the feature id given
+// here) and pass the parsed file on to MapLibre. The other layers keep lat/lon as properties.
+const exactCoords = {};
+function loadBusPoints() {
+  fetch(base + 'data/lta_bus_stop.geojson').then(r => r.json()).then(fc => {
+    const xy = new Float64Array(fc.features.length * 2);
+    fc.features.forEach((f, i) => {
+      f.id = i;
+      xy[2 * i] = f.geometry.coordinates[0];
+      xy[2 * i + 1] = f.geometry.coordinates[1];
+    });
+    exactCoords.lta_bus_stop = xy;
+    map.getSource('lta_bus_stop').setData(fc);
+  });
 }
 map.once('idle', loadBusStops);
 
@@ -198,7 +218,11 @@ map.once('style.load', () => {
   for (const id of Object.keys(POPUPS)) {
     map.on('click', id, e => {
       const f = e.features[0];
-      const rows = POPUPS[id].map(k => `<tr><td>${k}</td><td>${f.properties[k] ?? ''}</td></tr>`).join('');
+      const xy = exactCoords[id];
+      const value = k => (xy && (k === 'lat' || k === 'lon'))
+        ? xy[2 * f.id + (k === 'lat' ? 1 : 0)].toFixed(8)
+        : f.properties[k] ?? '';
+      const rows = POPUPS[id].map(k => `<tr><td>${k}</td><td>${value(k)}</td></tr>`).join('');
       new maplibregl.Popup({ maxWidth: '260px' }).setLngLat(e.lngLat)
         .setHTML(`<table>${rows}</table>`).addTo(map);
     });
