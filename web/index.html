@@ -12,6 +12,11 @@
   #title a { color: #1c7ed6; text-decoration: none; }
   #title { max-width: 260px; }
   #abstract { margin-top: 4px; font-size: 12px; color: #333; }
+  /* wide screens: #panel does not exist as a box, so title (left) and layers (right) place themselves */
+  #panel { display: contents; }
+  /* 2. keep the attribution clear of the OneMap logo at the bottom left */
+  /* MapLibre's own rule sets content-box, so max-width here is the text width: 36 px padding + 10 px margin + 50 px for the logo */
+  .maplibregl-ctrl-attrib { max-width: calc(100vw - 96px); }
   #logo { position: absolute; z-index: 2; bottom: 24px; left: 10px; }
   #logo img { height: 24px; }
   #layers { position: absolute; z-index: 2; top: 10px; right: 50px; background: #fffd; padding: 6px 10px; border-radius: 6px; }
@@ -27,15 +32,25 @@
   .maplibregl-popup-content { font-size: 13px; }
   .maplibregl-popup-content td { padding: 1px 6px 1px 0; }
   .maplibregl-popup-content td:first-child { color: #666; }
+  @media (max-width: 600px) {
+    /* narrow screens: one column on the left, clear of the zoom buttons, so nothing overlaps */
+    #panel { display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+             position: absolute; z-index: 2; top: 10px; left: 10px; right: 60px; }
+    #title, #layers { position: static; max-width: 100%; box-sizing: border-box; }
+    .card { min-width: 62px; padding: 2px 6px 3px; }
+    .card-name, .card .row { font-size: 11px; }
+    .card .row { line-height: 14px; gap: 6px; }
+  }
 </style>
 </head>
 <body>
 <div id="map"></div>
-<div id="title"><b><a href="https://github.com/flamanta/sg-streetpoints" target="_blank" rel="noopener noreferrer">Singapore street points</a></b><div id="abstract">by <a href="https://github.com/flamanta" target="_blank" rel="noopener noreferrer">@flamanta</a><br><br>Interactive web map of Singapore's lamp posts and bus stops, built from data.gov.sg open data with MapLibre.</div></div>
+<div id="panel"><div id="title"><b><a href="https://github.com/flamanta/sg-streetpoints" target="_blank" rel="noopener noreferrer">Singapore street points</a></b><div id="abstract">by <a href="https://github.com/flamanta" target="_blank" rel="noopener noreferrer">@flamanta</a><br><br>Interactive web map of Singapore's lamp posts and bus stops, built from data.gov.sg open data with MapLibre.</div></div>
 <div id="layers">
   <label><input type="checkbox" data-layers="lta_lamp_post,lta_lamp_post_regions" checked><span class="dot" style="background:#f0a30a"></span>LTA Lamp Post</label>
   <label><input type="checkbox" data-layers="sla_lamp_post" checked><span class="dot" style="background:#d9480f"></span>SLA Lamp Post</label>
   <label><input type="checkbox" data-layers="lta_bus_stop,lta_bus_stop_regions" checked><span class="dot" style="background:#1c7ed6"></span>LTA Bus Stop</label>
+</div>
 </div>
 <a id="logo" href="https://www.onemap.gov.sg/" target="_blank" rel="noopener"><img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" alt="OneMap"></a>
 <div id="debug"></div>
@@ -44,6 +59,11 @@
 const SWITCH_ZOOM = 15;          // regional bubbles below, individual points from here
 const POINT_RADIUS = 4;          // 8 px across, same as the Leaflet map
 const base = location.href.replace(/[^/]*$/, '');
+// Lowest zoom: 11 normally. The five region cards span about 670 px at zoom 11 plus one card width, so a
+// narrow screen needs a lower minimum for all five to fit. 9 is the floor: it is the lowest zoom with OneMap tiles.
+// (MapLibre zoom is one below the Leaflet/OneMap tile zoom: MapLibre uses 512 px tiles, OneMap serves 256 px.)
+const CARD_WIDTH = innerWidth <= 600 ? 70 : 92;
+const MIN_ZOOM = Math.max(9, Math.min(11, 11 + Math.log2((innerWidth - 20 - CARD_WIDTH) / 670)));
 
 const POPUPS = {
   lta_lamp_post: ['LAMPPOST_NUM', 'UNIQUE_ID', 'lat', 'lon'],
@@ -53,8 +73,9 @@ const POPUPS = {
 
 const map = new maplibregl.Map({
   container: 'map',
-  bounds: [[103.60, 1.20], [104.05, 1.48]],
-  minZoom: 11,
+  center: [103.816, 1.34],   // halfway between the West and East cards, so both fit on a narrow screen
+  zoom: MIN_ZOOM,
+  minZoom: MIN_ZOOM,
   maxZoom: 18,
   attributionControl: { compact: true },
   style: {
@@ -116,8 +137,8 @@ Promise.all(TYPES.map(t => fetch(base + `data/${t.id}_regions.geojson`).then(r =
       `<div class="row" data-type="${t.id}"><span class="dot" style="background:${t.colour}"></span>` +
       `<span class="n">${r.counts[t.id] ? r.counts[t.id].toLocaleString() : '&ndash;'}</span></div>`).join('');
     el.addEventListener('click', () => map.easeTo({ center: r.pos, zoom: SWITCH_ZOOM }));
-    new maplibregl.Marker({ element: el }).setLngLat(r.pos).addTo(map);
-    cards.push(el);
+    const marker = new maplibregl.Marker({ element: el }).setLngLat(r.pos).addTo(map);
+    cards.push({ el, marker, pos: r.pos });
   }
   updateBubbles();
 });
@@ -125,7 +146,7 @@ Promise.all(TYPES.map(t => fetch(base + `data/${t.id}_regions.geojson`).then(r =
 const visible = { lta_lamp_post: true, sla_lamp_post: true, lta_bus_stop: true };
 function updateBubbles() {
   const zoomedOut = map.getZoom() < SWITCH_ZOOM;
-  for (const el of cards) {
+  for (const { el } of cards) {
     let any = false;
     el.querySelectorAll('.row').forEach(row => {
       const on = visible[row.dataset.type];
@@ -133,6 +154,29 @@ function updateBubbles() {
       any = any || on;
     });
     el.style.display = zoomedOut && any ? 'block' : 'none';
+  }
+  if (zoomedOut) layoutCards();
+}
+
+// If two cards would overlap on screen (small screen, low zoom), push the lower one down until they clear.
+function layoutCards() {
+  const GAP = 6;
+  const items = cards.filter(c => c.el.style.display !== 'none').map(c => {
+    const p = map.project(c.pos);
+    return { c, x: p.x, y: p.y, w: c.el.offsetWidth, h: c.el.offsetHeight, dy: 0 };
+  }).sort((a, b) => a.y - b.y);
+  const placed = [];
+  for (const it of items) {
+    for (let moved = true; moved;) {
+      moved = false;
+      for (const q of placed) {
+        const clashX = Math.abs(it.x - q.x) < (it.w + q.w) / 2 + GAP;
+        const clashY = Math.abs(it.y + it.dy - (q.y + q.dy)) < (it.h + q.h) / 2 + GAP;
+        if (clashX && clashY) { it.dy = q.y + q.dy + (it.h + q.h) / 2 + GAP - it.y; moved = true; }
+      }
+    }
+    placed.push(it);
+    it.c.marker.setOffset([0, it.dy]);
   }
 }
 
@@ -152,6 +196,7 @@ map.once('style.load', () => {
     map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
   }
   map.on('zoom', updateBubbles);
+  map.on('resize', updateBubbles);
   updateBubbles();
 });
 
