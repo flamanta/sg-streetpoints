@@ -16,7 +16,7 @@
 
 Lamp posts and bus stops are everywhere. Before Google Maps, people used them as landmarks. Today they fade into the background.
 
-This map brings them back into view: more than 100,000 lamp posts packed onto one small island. Zoom into your own street and see how many you have never noticed.
+This map brings them back into view: more than 100,000 lamp posts packed onto one small island. Zoom into your own street and see how many you have walked past without noticing.
 
 ## Using the map
 
@@ -38,7 +38,7 @@ Install tippecanoe (`brew install tippecanoe`), run `python3 scripts/build_site.
 
 ## Data sources and attribution
 
-Contains information from the datasets below, accessed from [data.gov.sg](https://data.gov.sg), which is made available under the terms of the [Singapore Open Data Licence version 1.0](https://data.gov.sg/open-data-licence).
+Contains information from the datasets below, accessed from [data.gov.sg](https://data.gov.sg), which is made available under the terms of the [Singapore Open Data Licence v1.0](https://data.gov.sg/open-data-licence).
 
 | Dataset | Agency |
 |---|---|
@@ -46,7 +46,7 @@ Contains information from the datasets below, accessed from [data.gov.sg](https:
 | [SLA Lamp Post](https://data.gov.sg/datasets/d_1ad7921e25264140dc361e193c095c52/view) | Singapore Land Authority |
 | [LTA Bus Stop](https://data.gov.sg/datasets/d_3f172c6feb3f4f92a2f47d93eed2908a/view) | Land Transport Authority |
 
-The data is retrieved on a monthly schedule, so the access date is the date of the latest run of the workflow. Point locations in the lamp post datasets are indicative only, as stated by the data owners.
+The data is retrieved monthly, so the access date is the date of the latest workflow run. Point locations in the lamp post datasets are indicative only, as stated by the data owners.
 
 The background map is [OneMap](https://www.onemap.gov.sg/), © contributors, Singapore Land Authority, used under the [OneMap terms of use](https://www.onemap.gov.sg/legal/termsofuse.html).
 
@@ -54,17 +54,17 @@ This project is not endorsed by or affiliated with LTA, SLA or the Singapore Gov
 
 ## License
 
-The code in this repository is released under the [MIT License](LICENSE). The data is not covered by it: it remains under the [Singapore Open Data Licence version 1.0](https://data.gov.sg/open-data-licence), and the OneMap basemap under the OneMap terms of use.
+The code in this repository is released under the [MIT License](LICENSE). The data is not covered by it: it remains under the [Singapore Open Data Licence v1.0](https://data.gov.sg/open-data-licence), and the OneMap basemap under the OneMap terms of use.
 
 ## Citation
 
-To cite this project, use the DOI above (it always points to the latest version), or the metadata in [`CITATION.cff`](CITATION.cff).
+To cite this project, use the DOI badge at the top (it always points to the latest version), or the metadata in [`CITATION.cff`](CITATION.cff).
 
-### APA:
+### APA
 
 Cher, W. M. (2026). *sg-streetpoints: Interactive web map of Singapore's lamp posts and bus stops* [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.24074189
 
-### BibTeX:
+### BibTeX
 
 ```bibtex
 @misc{cher_sg_streetpoints,
