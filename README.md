@@ -1,6 +1,6 @@
 <h1 align="center">SG Street Points</h1>
 
-<p align="center">A web map of Singapore lamp posts and bus stops.</p>
+<p align="center">An interactive web map of Singapore's lamp posts and bus stops.</p>
 
 <p align="center"><a href="https://flamanta.github.io/sg-streetpoints/"><u>Try it in your browser</u></a>&emsp;<a href="https://github.com/flamanta/sg-streetpoints/releases"><u>Release notes</u></a>&emsp;<a href="https://github.com/flamanta/sg-streetpoints/issues"><u>Issues</u></a></p>
 
