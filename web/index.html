@@ -71,6 +71,11 @@ const POPUPS = {
   sla_lamp_post: ['LAMPPOST_NUMBER', 'STREET_NAME', 'lat', 'lon'],
   lta_bus_stop: ['BUS_STOP_NUM', 'BUS_ROOF_NUM', 'lat', 'lon'],
 };
+// popup labels (the data keeps its original field names)
+const LABELS = {
+  LAMPPOST_NUM: 'Lamp post no.', LAMPPOST_NUMBER: 'Lamp post no.', STREET_NAME: 'Street',
+  BUS_STOP_NUM: 'Bus stop no.', BUS_ROOF_NUM: 'Roof no.', lat: 'Latitude', lon: 'Longitude',
+};
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
 
@@ -220,13 +225,18 @@ map.once('style.load', () => {
     map.on('click', id, e => {
       const f = e.features[0];
       const xy = exactCoords[id];
+      // Tidy text values: some lamp post numbers hold line breaks ("6\r\n6", "112\r\n") or double spaces. Split on line
+      // breaks, collapse spaces, drop repeats and join what is left with ", "
+      const tidy = v => [...new Set(String(v ?? '').split(/[\r\n]+/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean))].join(', ');
       const value = k => (xy && (k === 'lat' || k === 'lon'))
         ? xy[2 * f.id + (k === 'lat' ? 1 : 0)].toFixed(8)
-        : f.properties[k] ?? '';
-      // Real BUS_ROOF_NUM codes start with B (B01, B02, ...). Everything else ("0", NIL, UNK, NA, INT, TMNL, ...) is a
-      // placeholder or a special case, so that row is left out (about 800 of 5,205 bus stops)
-      const hasRoof = v => /^b/i.test(String(v ?? '').trim());
-      const rows = POPUPS[id].filter(k => k !== 'BUS_ROOF_NUM' || hasRoof(f.properties[k])).map(k => `<tr><td>${k}</td><td>${value(k)}</td></tr>`).join('');
+        : tidy(f.properties[k]);
+      // Leave a row out when it has nothing to show: empty, "<Null>" (SLA streets), or a placeholder (UNK, UNKNOWN, NIL, NA,
+      // 0 or ".": about 3,050 LTA lamp posts). BUS_ROOF_NUM is shown only when it starts with B (real codes are B01,
+      // B02, ...; "0", NIL, UNK, NA, INT, ... are placeholders or special cases, about 800 of 5,205 bus stops)
+      const empty = v => /^(<null>|unk|unknown|nil|na|0|\.)?$/i.test(v);
+      const show = k => k === 'BUS_ROOF_NUM' ? /^b/i.test(value(k)) : !empty(value(k));
+      const rows = POPUPS[id].filter(show).map(k => `<tr><td>${LABELS[k]}</td><td>${value(k)}</td></tr>`).join('');
       new maplibregl.Popup({ maxWidth: '260px' }).setLngLat(e.lngLat)
         .setHTML(`<table>${rows}</table>`).addTo(map);
     });
