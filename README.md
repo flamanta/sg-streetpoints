@@ -10,7 +10,7 @@
 
 </div>
 
-<p align="center"><img src="docs/screenshot.webp" alt="SG Street Points map at Caldecott MRT station, showing LTA lamp posts, SLA lamp posts and LTA bus stops" width="800"></p>
+<p align="center"><img src="docs/screenshot.webp" alt="SG Street Points map at Caldecott MRT station, showing lamp posts and bus stops" width="800"></p>
 
 ## Why I created the map
 
@@ -20,7 +20,7 @@ This map brings them back into view: more than 100,000 lamp posts packed onto on
 
 ## Using the map
 
-The zoomed-out view shows one card per region with the counts for all three types. Individual points appear from zoom 15. Click a card to zoom in, and click a point for its details. Add `?debug` to the address to see the zoom level, the number of points on screen and any errors.
+The zoomed-out view shows one card per region with the counts of lamp posts and bus stops. Individual points appear from zoom 15. Click a card to zoom in, and click a point for its details. Add `?debug` to the address to see the zoom level, the number of points on screen and any errors.
 
 ## How it works
 

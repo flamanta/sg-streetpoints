@@ -48,9 +48,8 @@
 <div id="map"></div>
 <div id="panel"><div id="title"><b><a href="https://github.com/flamanta/sg-streetpoints" target="_blank" rel="noopener noreferrer">SG Street Points</a></b><div id="abstract">by <a href="https://github.com/flamanta" target="_blank" rel="noopener noreferrer">@flamanta</a><br><br>Interactive web map of Singapore's lamp posts and bus stops, built from data.gov.sg open data with MapLibre.</div></div>
 <div id="layers">
-  <label><input type="checkbox" data-layers="lta_lamp_post,lta_lamp_post_regions" checked><span class="dot" style="background:#f0a30a"></span>LTA Lamp Post</label>
-  <label><input type="checkbox" data-layers="sla_lamp_post" checked><span class="dot" style="background:#d9480f"></span>SLA Lamp Post</label>
-  <label><input type="checkbox" data-layers="lta_bus_stop,lta_bus_stop_regions" checked><span class="dot" style="background:#1c7ed6"></span>LTA Bus Stop</label>
+  <label><input type="checkbox" data-layers="lta_lamp_post,sla_lamp_post" checked><span class="dot" style="background:#f0a30a"></span>Lamp post</label>
+  <label><input type="checkbox" data-layers="lta_bus_stop,lta_bus_stop_regions" checked><span class="dot" style="background:#1c7ed6"></span>Bus stop</label>
 </div>
 </div>
 <a id="logo" href="https://www.onemap.gov.sg/" target="_blank" rel="noopener"><img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" alt="OneMap"></a>
@@ -122,12 +121,16 @@ function circle(id, source, colour, extra = {}) {
   };
 }
 
-// One card per region listing all three data types, so the numbers can never overlap each other.
+// One card per region listing the lamp posts (LTA and SLA together) and the bus stops, so the numbers can never overlap each other.
 // Cards are HTML markers because the style has no font glyphs to draw text with.
 const TYPES = [
-  { id: 'lta_lamp_post', colour: '#f0a30a', label: 'LTA lamp posts' },
-  { id: 'sla_lamp_post', colour: '#d9480f', label: 'SLA lamp posts' },
-  { id: 'lta_bus_stop',  colour: '#1c7ed6', label: 'LTA bus stops' },
+  { id: 'lta_lamp_post' },
+  { id: 'sla_lamp_post' },
+  { id: 'lta_bus_stop' },
+];
+const ROWS = [   // card rows; the first row's id is the one the legend checkbox switches
+  { id: 'lta_lamp_post', colour: '#f0a30a', count: c => (c.lta_lamp_post || 0) + (c.sla_lamp_post || 0) },
+  { id: 'lta_bus_stop',  colour: '#1c7ed6', count: c => c.lta_bus_stop || 0 },
 ];
 const cards = [];
 Promise.all(TYPES.map(t => fetch(base + `data/${t.id}_regions.geojson`).then(r => r.json()))).then(all => {
@@ -141,9 +144,11 @@ Promise.all(TYPES.map(t => fetch(base + `data/${t.id}_regions.geojson`).then(r =
     const el = document.createElement('div');
     el.className = 'card';
     el.title = 'Click to zoom in';
-    el.innerHTML = `<div class="card-name">${name}</div>` + TYPES.map(t =>
-      `<div class="row" data-type="${t.id}"><span class="dot" style="background:${t.colour}"></span>` +
-      `<span class="n">${r.counts[t.id] ? r.counts[t.id].toLocaleString() : '&ndash;'}</span></div>`).join('');
+    el.innerHTML = `<div class="card-name">${name}</div>` + ROWS.map(t => {
+      const n = t.count(r.counts);
+      return `<div class="row" data-type="${t.id}"><span class="dot" style="background:${t.colour}"></span>` +
+        `<span class="n">${n ? n.toLocaleString() : '&ndash;'}</span></div>`;
+    }).join('');
     el.addEventListener('click', () => map.easeTo({ center: r.pos, zoom: SWITCH_ZOOM }));
     const marker = new maplibregl.Marker({ element: el }).setLngLat(r.pos).addTo(map);
     cards.push({ el, marker, pos: r.pos });
@@ -218,7 +223,7 @@ function layoutCards() {
 
 map.once('style.load', () => {
   map.addLayer(circle('lta_lamp_post', 'lta_lamp_post', '#f0a30a', { 'source-layer': 'lta_lamp_post', minzoom: SWITCH_ZOOM }));
-  map.addLayer(circle('sla_lamp_post', 'sla_lamp_post', '#d9480f', { minzoom: SWITCH_ZOOM }));
+  map.addLayer(circle('sla_lamp_post', 'sla_lamp_post', '#f0a30a', { minzoom: SWITCH_ZOOM }));
   map.addLayer(circle('lta_bus_stop', 'lta_bus_stop', '#1c7ed6', { minzoom: SWITCH_ZOOM }));
 
   for (const id of Object.keys(POPUPS)) {
@@ -251,7 +256,7 @@ map.once('style.load', () => {
 document.querySelectorAll('#layers input').forEach(box => box.addEventListener('change', () => {
   const ids = box.dataset.layers.split(',');
   visible[ids[0]] = box.checked;
-  if (map.getLayer(ids[0])) map.setLayoutProperty(ids[0], 'visibility', box.checked ? 'visible' : 'none');
+  ids.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', box.checked ? 'visible' : 'none'); });
   updateBubbles();
 }));
 
