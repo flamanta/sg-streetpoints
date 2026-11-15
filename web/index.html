@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Singapore Street Points</title>
+<title>SG Street Points</title>
 <link rel="stylesheet" href="lib/maplibre-gl.css">
 <style>
   html, body, #map { height: 100%; margin: 0; }
@@ -46,7 +46,7 @@
 </head>
 <body>
 <div id="map"></div>
-<div id="panel"><div id="title"><b><a href="https://github.com/flamanta/sg-streetpoints" target="_blank" rel="noopener noreferrer">Singapore street points</a></b><div id="abstract">by <a href="https://github.com/flamanta" target="_blank" rel="noopener noreferrer">@flamanta</a><br><br>Interactive web map of Singapore's lamp posts and bus stops, built from data.gov.sg open data with MapLibre.</div></div>
+<div id="panel"><div id="title"><b><a href="https://github.com/flamanta/sg-streetpoints" target="_blank" rel="noopener noreferrer">SG Street Points</a></b><div id="abstract">by <a href="https://github.com/flamanta" target="_blank" rel="noopener noreferrer">@flamanta</a><br><br>Interactive web map of Singapore's lamp posts and bus stops, built from data.gov.sg open data with MapLibre.</div></div>
 <div id="layers">
   <label><input type="checkbox" data-layers="lta_lamp_post,lta_lamp_post_regions" checked><span class="dot" style="background:#f0a30a"></span>LTA Lamp Post</label>
   <label><input type="checkbox" data-layers="sla_lamp_post" checked><span class="dot" style="background:#d9480f"></span>SLA Lamp Post</label>
@@ -223,7 +223,8 @@ map.once('style.load', () => {
       const value = k => (xy && (k === 'lat' || k === 'lon'))
         ? xy[2 * f.id + (k === 'lat' ? 1 : 0)].toFixed(8)
         : f.properties[k] ?? '';
-      const rows = POPUPS[id].map(k => `<tr><td>${k}</td><td>${value(k)}</td></tr>`).join('');
+      // 426 bus stops have BUS_ROOF_NUM "0" (no roof number): leave that row out
+      const rows = POPUPS[id].filter(k => !(k === 'BUS_ROOF_NUM' && f.properties[k] === '0')).map(k => `<tr><td>${k}</td><td>${value(k)}</td></tr>`).join('');
       new maplibregl.Popup({ maxWidth: '260px' }).setLngLat(e.lngLat)
         .setHTML(`<table>${rows}</table>`).addTo(map);
     });
