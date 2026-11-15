@@ -223,8 +223,10 @@ map.once('style.load', () => {
       const value = k => (xy && (k === 'lat' || k === 'lon'))
         ? xy[2 * f.id + (k === 'lat' ? 1 : 0)].toFixed(8)
         : f.properties[k] ?? '';
-      // 426 bus stops have BUS_ROOF_NUM "0" (no roof number): leave that row out
-      const rows = POPUPS[id].filter(k => !(k === 'BUS_ROOF_NUM' && f.properties[k] === '0')).map(k => `<tr><td>${k}</td><td>${value(k)}</td></tr>`).join('');
+      // Real BUS_ROOF_NUM codes start with B (B01, B02, ...). Everything else ("0", NIL, UNK, NA, INT, TMNL, ...) is a
+      // placeholder or a special case, so that row is left out (about 800 of 5,205 bus stops)
+      const hasRoof = v => /^b/i.test(String(v ?? '').trim());
+      const rows = POPUPS[id].filter(k => k !== 'BUS_ROOF_NUM' || hasRoof(f.properties[k])).map(k => `<tr><td>${k}</td><td>${value(k)}</td></tr>`).join('');
       new maplibregl.Popup({ maxWidth: '260px' }).setLngLat(e.lngLat)
         .setHTML(`<table>${rows}</table>`).addTo(map);
     });
