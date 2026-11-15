@@ -38,6 +38,7 @@
              position: absolute; z-index: 2; top: 10px; left: 10px; right: 60px; }
     #title, #layers { position: static; max-width: 100%; box-sizing: border-box; }
     .card { min-width: 62px; padding: 2px 6px 3px; }
+    .maplibregl-ctrl-attrib.maplibregl-compact { font-size: 10px; line-height: 1.35; }
     .card-name, .card .row { font-size: 11px; }
     .card .row { line-height: 14px; gap: 6px; }
   }
@@ -66,9 +67,9 @@ const CARD_WIDTH = innerWidth <= 600 ? 70 : 92;
 const MIN_ZOOM = Math.max(9, Math.min(11, 11 + Math.log2((innerWidth - 20 - CARD_WIDTH) / 670)));
 
 const POPUPS = {
-  lta_lamp_post: ['LAMPPOST_NUM', 'UNIQUE_ID', 'lat', 'lon'],
+  lta_lamp_post: ['LAMPPOST_NUM', 'lat', 'lon'],
   sla_lamp_post: ['LAMPPOST_NUMBER', 'STREET_NAME', 'lat', 'lon'],
-  lta_bus_stop: ['BUS_STOP_NUM', 'BUS_ROOF_NUM', 'UNIQUE_ID', 'lat', 'lon'],
+  lta_bus_stop: ['BUS_STOP_NUM', 'BUS_ROOF_NUM', 'lat', 'lon'],
 };
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
@@ -88,7 +89,7 @@ const map = new maplibregl.Map({
         tiles: ['https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png'],
         tileSize: 256,
         maxzoom: 19,
-        attribution: 'Map &copy; <a href="https://www.onemap.gov.sg/">OneMap</a> &middot; Data from <a href="https://data.gov.sg/">data.gov.sg</a> (Singapore Open Data Licence)',
+        attribution: 'Map: <a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener noreferrer">OneMap</a>&nbsp;&copy;&nbsp;contributors&nbsp;&#124;&nbsp;<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener noreferrer">Singapore Land Authority</a><br>Data: <a href="https://data.gov.sg" target="_blank" rel="noopener noreferrer">data.gov.sg</a>&nbsp;under&nbsp;<a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noopener noreferrer">Singapore Open Data License</a>',
       },
       lta_lamp_post: {
         type: 'vector',
